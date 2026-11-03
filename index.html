@@ -141,8 +141,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .ctray { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .side { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--font-ui); font-weight: 700; font-size: 13px; }
 .round { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); padding: 0; }
-.round.mic { width: 80px; height: 80px; background: var(--yellow); }
-.round.mic.on { background: var(--red); color: #FFF8EC; }
+.round.hang { width: 76px; height: 76px; background: var(--red); color: #FFF8EC; }
+.round[aria-pressed="true"]#muteBtn { background: var(--ink); color: var(--paper); }
+.dur { background: var(--paper); }
+.meter { display: flex; align-items: center; justify-content: center; gap: 4px; height: 26px; }
+.meter i { display: block; width: 6px; height: 4px; border-radius: 3px; background: var(--yellow); border: 1.5px solid var(--ink); transition: height .08s linear; }
+.meter.off i { background: #D9CBB5; }
 .round:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
 .round:disabled { opacity: .5; cursor: default; transform: none; }
 .tabp { gap: 10px; }
@@ -300,12 +304,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
       <div class="callhead">
         <span class="pill2" id="cclock">21:40</span>
         <span class="cpat" id="cpat"></span>
-        <button class="btn small red" id="byeBtn" type="button">Tạm biệt</button>
+        <span class="pill2 dur" id="cdur" aria-label="Thời lượng cuộc gọi">00:00</span>
       </div>
       <div class="tutor">
         <div class="ring" id="ring"><canvas id="pcv" width="360" height="360" aria-hidden="true"></canvas></div>
         <div class="tname" id="ctname">Kenji</div>
         <div class="cstate" id="cstate">Đang kết nối…</div>
+        <div class="meter" id="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </div>
       <div class="clog" id="clog" aria-live="polite"></div>
       <div class="live" id="live"></div>
@@ -317,12 +322,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
       <div class="err" id="err" hidden></div>
       <div class="ctray">
         <div class="side"><button class="round" id="hintBtn" type="button" aria-label="Gợi ý câu nói"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button><span id="hintLabel">Gợi ý · 2</span></div>
-        <div class="side"><button class="round mic" id="micBtn" type="button" aria-label="Nói"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button><span id="micLabel">Chạm để nói</span></div>
+        <div class="side"><button class="round" id="muteBtn" type="button" aria-label="Tắt micro" aria-pressed="false"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button><span id="micLabel">Micro: bật</span></div>
+        <div class="side"><button class="round hang" id="byeBtn" type="button" aria-label="Kết thúc cuộc gọi"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15.5c5-4.7 13-4.7 18 0l-2.2 2.6-3.6-1.6v-2.6c-2.1-.7-4.3-.7-6.4 0v2.6l-3.6 1.6z"/></svg></button><span>Kết thúc</span></div>
         <div class="side"><button class="round" id="subBtn" type="button" aria-label="Bật tắt phụ đề" aria-pressed="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 12h4"/><path d="M13 12h4"/><path d="M7 15h10"/></svg></button><span id="subLabel">Phụ đề: bật</span></div>
       </div>
       <div class="row" style="justify-content:space-between; flex-wrap:wrap">
-        <button class="btn small" id="replayBtn" type="button">Nghe lại</button>
-        <label class="mode row" style="gap:6px"><input type="checkbox" id="handsfree" checked> Tự nghe sau khi nhân vật nói</label>
+        <button class="btn small" id="replayBtn" type="button">Nghe lại câu vừa rồi</button>
+        <span class="mode" id="callTip">Cứ nói tự nhiên, ngừng một chút là câu được gửi.</span>
       </div>
     </div>
   </div>
@@ -1043,6 +1049,7 @@ function speak(text) {
     const u = new SpeechSynthesisUtterance(text), v = VOICE[callNpc];
     const vv = voiceFor(callNpc); if (vv) u.voice = vv;
     u.lang = vv ? vv.lang : "en-US"; u.pitch = v.pitch; u.rate = v.rate * RATE[D.level];
+    abortListening();
     speaking = true; cState("speaking", subs ? "Đang nói…" : "Đang nói… hãy nghe");
     updateMic();
     let done = false;
@@ -1058,54 +1065,106 @@ async function npcSays(text) {
   bubble(callNpc, text, "npc", NPCS[callNpc].name);
   await speak(text);
   if (!callOpen) return;
-  if ($("handsfree").checked && !micOff && !S.ended) listen(); else cIdle();
+  resume();
 }
 function cIdle() {
-  cState("", micOff ? "Đến lượt bạn: gõ câu trả lời" : "Đến lượt bạn: chạm micro để nói");
+  if (!callOpen) return;
+  if (S.busy || speaking) { updateMic(); return; }
+  if (micOff) cState("", "Đến lượt bạn: gõ câu trả lời");
+  else if (muted) cState("", "Micro đang tắt. Bật lại để nói tiếp.");
+  else if (listening) cState("listening", "Đang nghe… cứ nói tự nhiên");
+  else cState("", "Đến lượt bạn");
   updateMic();
 }
 
-let rec = null, silenceTimer = null;
-function listen() {
-  if (micOff || listening || S.busy || !callOpen) return;
-  if (hasTTS) speechSynthesis.cancel();
-  $("live").textContent = "";
+/* live call: the mic listens on its own whenever it is your turn */
+let rec = null, silenceTimer = null, utter = "", muted = false, restarts = [];
+function resume() {
+  if (!callOpen || micOff || muted || speaking || S.busy || S.ended) { cIdle(); return; }
+  if (listening) { cIdle(); return; }
+  utter = "";
   rec = new SR();
   rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
   rec.onresult = ev => {
     let fin = "", interim = "";
-    for (let i = 0; i < ev.results.length; i++) {
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const t = ev.results[i][0].transcript;
       if (ev.results[i].isFinal) fin += t + " "; else interim += t;
     }
-    $("live").textContent = (fin + interim).trim();
+    utter = (utter + fin).replace(/\s+/g, " ");
+    const shown = (utter + interim).trim();
+    $("live").textContent = shown;
+    if (shown) cState("listening", "Bạn đang nói…");
     clearTimeout(silenceTimer);
-    silenceTimer = setTimeout(stopListening, 1700);
+    if (shown) silenceTimer = setTimeout(finishUtterance, 1400);
   };
   rec.onerror = ev => {
     if (ev.error === "not-allowed" || ev.error === "service-not-allowed" || ev.error === "audio-capture") {
       micOff = true; listening = false;
       $("typeForm").hidden = false;
-      cErr(inViewer ? "Trong claude.ai không dùng được micro, nên bạn gõ câu trả lời nhé. Muốn nói thật, mở file hanami-game.html bằng Chrome." : "Chưa dùng được micro. Bấm biểu tượng bên trái thanh địa chỉ của Chrome, cho phép Micro, rồi mở lại cuộc gọi.");
+      cErr(inViewer ? "Trong claude.ai không dùng được micro, nên bạn gõ câu trả lời nhé. Muốn nói thật, mở game trên link Railway bằng Chrome." : "Chưa dùng được micro. Bấm biểu tượng bên trái thanh địa chỉ của Chrome, cho phép Micro, rồi mở lại cuộc gọi.");
       cIdle();
     }
   };
   rec.onend = () => {
-    if (!listening) return;
-    listening = false;
-    const text = ($("live").textContent || "").trim();
-    $("live").textContent = "";
-    if (text) talk(text); else cIdle();
+    const was = listening; listening = false;
+    if (!was) return;
+    const pending = ($("live").textContent || "").trim();
+    if (pending) { finishUtterance(); return; }
+    const now = Date.now();
+    restarts = restarts.filter(t => now - t < 5000); restarts.push(now);
+    if (restarts.length > 6) { cErr("Micro bị ngắt liên tục. Kiểm tra micro rồi bật lại nút Micro."); muted = true; cIdle(); return; }
+    setTimeout(resume, 250);
   };
-  try { rec.start(); listening = true; cState("listening", "Đang nghe bạn…"); updateMic(); }
+  try { rec.start(); listening = true; cIdle(); }
   catch (e) { micOff = true; $("typeForm").hidden = false; cIdle(); }
 }
-function stopListening() { clearTimeout(silenceTimer); if (rec && listening) { try { rec.stop(); } catch (e) {} } }
+function finishUtterance() {
+  clearTimeout(silenceTimer);
+  const text = ($("live").textContent || "").trim();
+  $("live").textContent = ""; utter = "";
+  abortListening();
+  if (text) talk(text); else resume();
+}
 function abortListening() { clearTimeout(silenceTimer); if (rec && listening) { listening = false; try { rec.abort(); } catch (e) {} } }
 function updateMic() {
-  $("micBtn").classList.toggle("on", listening);
-  $("micBtn").disabled = S.busy || micOff;
-  $("micLabel").textContent = micOff ? "Micro tắt" : listening ? "Chạm để gửi" : speaking ? "Chạm để chen" : "Chạm để nói";
+  $("muteBtn").setAttribute("aria-pressed", muted ? "true" : "false");
+  $("muteBtn").setAttribute("aria-label", muted ? "Bật micro" : "Tắt micro");
+  $("muteBtn").disabled = micOff;
+  $("micLabel").textContent = micOff ? "Micro: không có" : muted ? "Micro: tắt" : "Micro: bật";
+  $("meter").classList.toggle("off", micOff || muted || !listening);
+}
+
+/* voice level bars from the microphone, so the call feels live */
+let meterStream = null, meterCtx = null, meterRaf = 0, callStart = 0, durTimer = 0;
+async function startMeter() {
+  if (inViewer || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+  try {
+    meterStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    if (!callOpen) { stopMeter(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    meterCtx = new AC();
+    const an = meterCtx.createAnalyser(); an.fftSize = 256;
+    meterCtx.createMediaStreamSource(meterStream).connect(an);
+    const buf = new Uint8Array(an.frequencyBinCount), bars = [...document.querySelectorAll("#meter i")];
+    const draw = () => {
+      an.getByteFrequencyData(buf);
+      const live = listening && !muted;
+      bars.forEach((b, i) => {
+        const v = live ? buf.at(2 + i * 3) / 255 : 0;
+        b.style.height = (4 + Math.round(v * 22)) + "px";
+      });
+      meterRaf = requestAnimationFrame(draw);
+    };
+    draw();
+  } catch (e) { stopMeter(); }
+}
+function stopMeter() {
+  cancelAnimationFrame(meterRaf);
+  if (meterStream) meterStream.getTracks().forEach(t => t.stop());
+  if (meterCtx) meterCtx.close().catch(() => {});
+  meterStream = null; meterCtx = null;
+  document.querySelectorAll("#meter i").forEach(b => { b.style.height = "4px"; });
 }
 
 function openCall() {
@@ -1119,6 +1178,11 @@ function openCall() {
   $("subBtn").setAttribute("aria-pressed", subs ? "true" : "false"); $("subLabel").textContent = "Phụ đề: " + (subs ? "bật" : "tắt");
   $("callOv").hidden = false;
   hud();
+  callStart = Date.now(); clearInterval(durTimer);
+  const tick = () => { const t = Math.floor((Date.now() - callStart) / 1000); $("cdur").textContent = String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(t % 60).padStart(2, "0"); };
+  tick(); durTimer = setInterval(tick, 1000);
+  updateMic();
+  startMeter();
   const greet = VOICE[callNpc].greet[n.history.length ? 1 : 0];
   n.history.push({ who: "npc", text: greet });
   npcSays(greet);
@@ -1128,6 +1192,7 @@ function closeCall() {
   callOpen = false;
   if (hasTTS) speechSynthesis.cancel();
   abortListening();
+  clearInterval(durTimer); stopMeter();
   speaking = false;
   $("callOv").hidden = true;
   updateTalk();
@@ -1137,6 +1202,7 @@ async function talk(text) {
   if (S.busy || S.ended || !callOpen) return;
   cErr(""); $("hintText").hidden = true;
   const id = callNpc, n = NPCS[id];
+  abortListening(); $("live").textContent = "";
   S.busy = true; hud(); updateMic();
   cBubble("me", text);
   bubble("me", text, "me");
@@ -1264,11 +1330,10 @@ function end(kind, charge) {
 $("callBtn").addEventListener("click", openCall);
 $("byeBtn").addEventListener("click", closeCall);
 $("hintBtn").addEventListener("click", hint);
-$("micBtn").addEventListener("click", () => {
-  if (!callOpen || S.busy) return;
-  if (listening) { stopListening(); return; }
-  if (speaking && hasTTS) speechSynthesis.cancel();
-  listen();
+$("muteBtn").addEventListener("click", () => {
+  if (!callOpen || micOff) return;
+  muted = !muted; restarts = [];
+  if (muted) { abortListening(); $("live").textContent = ""; cIdle(); } else { cErr(""); resume(); }
 });
 $("typeForm").addEventListener("submit", e => {
   e.preventDefault();
@@ -1281,7 +1346,7 @@ $("say").addEventListener("input", () => cErr(""));
 $("replayBtn").addEventListener("click", () => {
   if (!callOpen || !lastNpcLine || S.busy) return;
   abortListening();
-  speak(lastNpcLine).then(() => { if (callOpen) cIdle(); });
+  speak(lastNpcLine).then(() => { if (callOpen) resume(); });
 });
 $("subBtn").addEventListener("click", () => {
   subs = !subs;
