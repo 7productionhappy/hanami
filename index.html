@@ -1,0 +1,1185 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,-apple-system,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>Hanami Lobby</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Be+Vietnam+Pro:wght@400;500;700&display=swap">
+<style>
+/* Layout: cozy sim-game console — wooden top bar, 3/4-view lobby, chunky control tray. Single warm look. */
+:root {
+  --bg: #FCE6C6;
+  --ink: #3B2414;
+  --paper: #FFF8EC;
+  --wood: #C98A55;
+  --wood-dark: #8E5632;
+  --yellow: #FFC93C;
+  --teal: #4CB8C4;
+  --red: #E4573D;
+  --green: #6BBF59;
+  --muted: #7A5A43;
+  --font-ui: "Baloo 2", "Be Vietnam Pro", system-ui, sans-serif;
+  --font-body: "Be Vietnam Pro", system-ui, sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 24px;
+}
+.game { max-width: 520px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+
+.topbar { background: var(--wood); border: 3px solid var(--ink); border-radius: 16px; padding: 8px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 0 var(--ink); }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill { display: flex; align-items: center; gap: 6px; background: var(--paper); border: 3px solid var(--ink); border-radius: 999px; padding: 2px 12px 2px 4px; font-family: var(--font-ui); font-weight: 800; font-size: 17px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.ico { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--ink); box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+.ico.coin { background: var(--yellow); }
+.ico.clock { background: var(--teal); }
+.quest { background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 6px 10px; font-family: var(--font-ui); font-size: 15px; line-height: 1.3; display: flex; gap: 8px; align-items: center; }
+.quest .tag { flex: none; background: var(--red); color: #FFF8EC; border: 2.5px solid var(--ink); border-radius: 8px; padding: 0 8px; font-weight: 800; font-size: 13px; }
+
+.stage { position: relative; width: 100%; border: 3px solid var(--ink); border-radius: 16px; overflow: hidden; background: #8E5632; box-shadow: 0 4px 0 var(--ink); }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 360 / 408; touch-action: none; cursor: pointer; }
+
+.bubble { position: absolute; max-width: 64%; padding: 6px 10px 7px; border-radius: 14px; font-size: 13px; line-height: 1.4; pointer-events: none; transform: translate(-50%, calc(-100% - 10px)); box-sizing: border-box; border: 2.5px solid var(--ink); background: #FFFFFF; color: var(--ink); }
+.bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px; background: inherit; border-right: 2.5px solid var(--ink); border-bottom: 2.5px solid var(--ink); transform: translateX(-50%) rotate(45deg); }
+.bubble.me { background: var(--yellow); font-weight: 500; }
+.bubble .who { display: block; font-family: var(--font-ui); font-size: 12px; font-weight: 800; color: var(--red); line-height: 1.2; }
+.bubble.below { transform: translate(-50%, 10px); }
+.bubble.below::after { top: -9px; bottom: auto; transform: translateX(-50%) rotate(-135deg); }
+.bubble.thinking { font-family: var(--font-ui); font-weight: 800; letter-spacing: 2px; }
+
+.toast { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: max-content; max-width: 86%; background: var(--paper); border: 3px solid var(--ink); padding: 6px 12px; border-radius: 12px; font-family: var(--font-ui); font-size: 15px; font-weight: 700; line-height: 1.3; text-align: center; }
+
+.end { position: absolute; inset: 0; background: rgba(59,36,20,.55); display: flex; align-items: center; justify-content: center; padding: 14px; box-sizing: border-box; }
+.card { width: 100%; max-height: 100%; overflow-y: auto; background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink); padding: 0 14px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+.ribbon { margin: 0 -14px; background: var(--red); color: #FFF8EC; border-bottom: 3px solid var(--ink); padding: 8px 14px; font-family: var(--font-ui); font-weight: 800; font-size: 22px; line-height: 1.2; text-align: center; text-wrap: balance; }
+.stars { display: flex; justify-content: center; gap: 6px; }
+.card p { margin: 0; line-height: 1.5; font-size: 14px; }
+.card h3 { margin: 0; font-family: var(--font-ui); font-size: 17px; font-weight: 800; }
+.fb { display: flex; flex-direction: column; gap: 6px; }
+.fb div { background: #FFFFFF; border: 2px solid var(--ink); border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.5; }
+.fb s { color: var(--muted); }
+.fb em { font-style: normal; font-weight: 700; color: #1F7A86; }
+.meta { font-family: var(--font-ui); font-weight: 700; font-size: 14px; color: var(--muted); text-align: center; }
+
+.tray { background: var(--wood); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); padding: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: stretch; }
+.dpad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 3px; flex: 0 0 auto; }
+.dpad button { border-radius: 12px; background: var(--paper); border: 3px solid var(--ink); color: var(--ink); display: flex; align-items: center; justify-content: center; touch-action: none; box-shadow: 0 3px 0 var(--ink); padding: 0; }
+.dpad button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.talk { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 8px; background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 10px; }
+.talk label { font-family: var(--font-ui); font-size: 16px; font-weight: 800; }
+.row { display: flex; gap: 8px; align-items: center; }
+.talk input { flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 8px 10px; }
+.btn { font-family: var(--font-ui); font-weight: 800; font-size: 16px; line-height: 1.2; border-radius: 12px; padding: 8px 14px; border: 3px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; box-shadow: 0 3px 0 var(--ink); }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.btn.go { background: var(--yellow); }
+.btn.teal { background: var(--teal); }
+.btn:disabled { opacity: .55; cursor: default; transform: none; box-shadow: 0 3px 0 var(--ink); }
+.hintline { font-size: 13px; line-height: 1.45; color: var(--muted); min-width: 0; }
+.err { font-size: 13px; color: var(--red); font-weight: 700; }
+.idle { font-family: var(--font-ui); font-size: 15px; line-height: 1.35; }
+.mode { font-size: 12px; color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .btn:active, .dpad button:active { transform: none; } }
+.home-head { display: flex; align-items: center; gap: 10px; }
+.avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--yellow); border: 3px solid var(--ink); display: flex; align-items: center; justify-content: center; font-family: var(--font-ui); font-weight: 800; font-size: 18px; }
+.who { flex: 1; min-width: 0; font-family: var(--font-ui); line-height: 1.15; }
+.who b { display: block; font-size: 18px; font-weight: 800; }
+.who span { font-size: 14px; font-weight: 700; color: #5A3A22; }
+.ico.star { background: var(--yellow); }
+.ico.fire { background: var(--red); }
+.daily { display: flex; align-items: center; gap: 10px; background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 6px 6px 6px 10px; font-family: var(--font-ui); font-size: 15px; line-height: 1.3; }
+.daily span { flex: 1; min-width: 0; }
+.btn.small { font-size: 14px; padding: 4px 10px; border-radius: 10px; }
+#homeCv { aspect-ratio: 360 / 460; }
+.sheet { background: var(--paper); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sheet .kicker { font-family: var(--font-ui); font-size: 14px; font-weight: 700; color: var(--muted); }
+.sheet h2 { margin: 0; font-family: var(--font-ui); font-size: 22px; font-weight: 800; line-height: 1.15; text-wrap: balance; }
+.sheet p { margin: 0; font-size: 14px; line-height: 1.5; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip2 { font-family: var(--font-ui); font-size: 13px; font-weight: 700; padding: 1px 10px; border: 2px solid var(--ink); border-radius: 999px; background: #FFFFFF; }
+.chip2.lv { background: var(--teal); }
+.status { font-family: var(--font-ui); font-size: 13px; font-weight: 800; padding: 1px 10px; border: 2px solid var(--ink); border-radius: 999px; }
+.status.open { background: var(--green); }
+.status.soon { background: var(--yellow); }
+.status.locked { background: #D9CBB5; }
+.sheet .btn { align-self: stretch; text-align: center; }
+.nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; background: var(--wood); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 4px 0 var(--ink); padding: 6px; }
+.nav button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--font-ui); font-weight: 800; font-size: 13px; color: var(--ink); background: transparent; border: 3px solid transparent; border-radius: 12px; padding: 4px 0; cursor: pointer; }
+.nav button[aria-current="page"] { background: var(--paper); border-color: var(--ink); }
+.talklabel { font-family: var(--font-ui); font-size: 16px; font-weight: 800; }
+.keybox { display: flex; flex-direction: column; gap: 4px; background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
+.keybox input { font: inherit; font-size: 15px; border: 2.5px solid var(--ink); border-radius: 8px; padding: 6px 8px; background: #FFFFFF; color: var(--ink); }
+.callov { position: fixed; inset: 0; z-index: 20; background: rgba(59,36,20,.6); display: flex; align-items: flex-start; justify-content: center; overflow-y: auto;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); box-sizing: border-box; }
+.callcard { width: 100%; max-width: 460px; background: var(--paper); border: 3px solid var(--ink); border-radius: 18px; box-shadow: 0 5px 0 var(--ink); padding: 12px; display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }
+.callhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pill2 { font-family: var(--font-ui); font-weight: 800; font-size: 16px; background: #FFFFFF; border: 3px solid var(--ink); border-radius: 999px; padding: 0 12px; font-variant-numeric: tabular-nums; }
+.cpat { font-family: var(--font-ui); font-weight: 800; font-size: 15px; color: var(--red); letter-spacing: 1px; }
+.tutor { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ring { position: relative; width: 132px; height: 132px; border-radius: 50%; border: 5px solid var(--ink); background: #F3E3C8; overflow: visible; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.ring canvas { width: 110px; height: 110px; display: block; }
+.ring::before { content: ""; position: absolute; inset: -12px; border-radius: 50%; border: 5px solid transparent; }
+.ring.speaking::before { border-color: var(--teal); }
+.ring.listening::before { border-color: var(--yellow); }
+.ring.thinking::before { border-color: #D9CBB5; border-style: dashed; }
+@media (prefers-reduced-motion: no-preference) { .ring.speaking::before, .ring.listening::before { animation: pulse 1.2s ease-in-out infinite; } }
+@keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.06); opacity: .55; } }
+.tname { font-family: var(--font-ui); font-weight: 800; font-size: 20px; line-height: 1.1; }
+.cstate { font-family: var(--font-ui); font-weight: 700; font-size: 15px; color: var(--muted); text-align: center; }
+.clog { display: flex; flex-direction: column; gap: 8px; max-height: 36vh; min-height: 100px; overflow-y: auto; padding: 2px; }
+.cb { max-width: 86%; border: 2.5px solid var(--ink); border-radius: 14px; padding: 6px 10px; font-size: 15px; line-height: 1.45; }
+.cb.t { align-self: flex-start; background: #FFFFFF; border-bottom-left-radius: 4px; }
+.cb.me { align-self: flex-end; background: var(--yellow); border-bottom-right-radius: 4px; }
+.cb.hidden-text { color: var(--muted); font-style: italic; }
+.cfb { align-self: flex-end; max-width: 86%; background: #EAF6F7; border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; font-size: 13px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; }
+.cfb .dots { font-family: var(--font-ui); font-weight: 800; letter-spacing: 1px; }
+.cfb .better { font-weight: 700; color: #1F6B74; }
+.cfb .eff { font-weight: 700; color: var(--red); }
+.live { min-height: 22px; font-size: 15px; font-style: italic; color: var(--muted); text-align: right; }
+.hintbox { font-size: 14px; line-height: 1.45; background: #FFFFFF; border: 2px solid var(--ink); border-radius: 10px; padding: 6px 10px; }
+#typeForm input { font: inherit; font-size: 16px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.ctray { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.side { display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: var(--font-ui); font-weight: 700; font-size: 13px; }
+.round { width: 54px; height: 54px; border-radius: 50%; border: 3px solid var(--ink); background: var(--paper); box-shadow: 0 3px 0 var(--ink); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--ink); padding: 0; }
+.round.mic { width: 80px; height: 80px; background: var(--yellow); }
+.round.mic.on { background: var(--red); color: #FFF8EC; }
+.round:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.round:disabled { opacity: .5; cursor: default; transform: none; }
+</style>
+
+<div class="game" id="homeView">
+  <div class="topbar">
+    <div class="home-head">
+      <div class="avatar" aria-hidden="true">B</div>
+      <div class="who"><b>Thành phố của bạn</b><span>Cấp 1 · trình độ A2</span></div>
+    </div>
+    <div class="pills">
+      <span class="pill"><span class="ico star" aria-hidden="true">★</span><span id="starTotal">0 sao</span></span>
+      <span class="pill"><span class="ico fire" aria-hidden="true"></span><span>Chuỗi 1 ngày</span></span>
+    </div>
+    <div class="daily"><span>Ôn 2 phút hôm nay: nói lại 3 câu bạn đã học</span><button class="btn small go" id="dailyBtn" type="button">Ôn ngay</button></div>
+    <div class="keybox" id="keyBox" hidden>
+      <label for="apiKey" class="talklabel">API key Anthropic (bản chạy trên máy)</label>
+      <input type="password" id="apiKey" autocomplete="off" placeholder="sk-ant-…">
+      <span>Key chỉ lưu trong trình duyệt của bạn và gửi thẳng tới Anthropic. Không có key, nhân vật dùng kịch bản có sẵn. Đừng gửi file cho người khác sau khi nhập key.</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="homeCv" width="720" height="920" aria-label="Bản đồ thành phố với các địa điểm cốt truyện"></canvas>
+    <div class="toast" id="homeToast" hidden></div>
+  </div>
+
+  <div class="sheet" id="sheet" aria-live="polite"></div>
+
+  <nav class="nav" aria-label="Điều hướng chính">
+    <button type="button" aria-current="page"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l6-3 6 3 6-3v13l-6 3-6-3-6 3z"/><path d="M9 4v13"/><path d="M15 7v13"/></svg>Bản đồ</button>
+    <button type="button" class="soonNav"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/></svg>Sổ tay</button>
+    <button type="button" class="soonNav"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>Ôn tập</button>
+    <button type="button" class="soonNav"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Hồ sơ</button>
+  </nav>
+</div>
+
+<div class="game" id="levelView" hidden>
+  <div class="topbar">
+    <div class="pills">
+      <button class="btn small" id="backBtn" type="button">← Bản đồ</button>
+      <span class="pill"><span class="ico coin" aria-hidden="true">¥</span><span id="wallet">12.400</span></span>
+      <span class="pill"><span class="ico clock" aria-hidden="true"></span><span id="clock">21:40</span></span>
+    </div>
+    <div class="quest"><span class="tag">Nhiệm vụ</span><span>Có chỗ ngủ tối nay, phụ thu không quá ¥3.000</span></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="cv" width="720" height="816" aria-label="Sảnh khách sạn Hanami"></canvas>
+    <div id="bubbles"></div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="end" id="end" hidden></div>
+  </div>
+
+  <div class="tray">
+    <div class="dpad" aria-label="Di chuyển">
+      <span></span>
+      <button id="up" aria-label="Lên"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+      <span></span>
+      <button id="left" aria-label="Trái"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <span></span>
+      <button id="right" aria-label="Phải"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <span></span>
+      <button id="down" aria-label="Xuống"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      <span></span>
+    </div>
+
+    <div class="talk">
+      <div id="idle" class="idle">Đi lại bằng phím mũi tên, nút điều hướng hoặc chạm vào sàn. Đến gần ai đó để bắt chuyện.</div>
+      <div id="talkForm" hidden>
+        <div class="talklabel" id="talkLabel">Nói với Kenji</div>
+        <button class="btn go" id="callBtn" type="button" style="margin-top:6px; width:100%">Bắt đầu nói chuyện</button>
+      </div>
+      <div class="mode" id="mode">Đến gần nhân vật rồi bấm "Bắt đầu nói chuyện" hoặc Enter.</div>
+    </div>
+  </div>
+
+  <div class="callov" id="callOv" hidden role="dialog" aria-modal="true" aria-labelledby="ctname">
+    <div class="callcard">
+      <div class="callhead">
+        <span class="pill2" id="cclock">21:40</span>
+        <span class="cpat" id="cpat"></span>
+        <button class="btn small red" id="byeBtn" type="button">Tạm biệt</button>
+      </div>
+      <div class="tutor">
+        <div class="ring" id="ring"><canvas id="pcv" width="360" height="360" aria-hidden="true"></canvas></div>
+        <div class="tname" id="ctname">Kenji</div>
+        <div class="cstate" id="cstate">Đang kết nối…</div>
+      </div>
+      <div class="clog" id="clog" aria-live="polite"></div>
+      <div class="live" id="live"></div>
+      <div class="hintbox" id="hintText" hidden></div>
+      <form class="row" id="typeForm" hidden>
+        <input id="say" autocomplete="off" placeholder="Gõ câu trả lời bằng tiếng Anh…" style="flex:1">
+        <button class="btn go small" id="sendBtn" type="submit">Gửi</button>
+      </form>
+      <div class="err" id="err" hidden></div>
+      <div class="ctray">
+        <div class="side"><button class="round" id="hintBtn" type="button" aria-label="Gợi ý câu nói"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg></button><span id="hintLabel">Gợi ý · 2</span></div>
+        <div class="side"><button class="round mic" id="micBtn" type="button" aria-label="Nói"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></button><span id="micLabel">Chạm để nói</span></div>
+        <div class="side"><button class="round" id="subBtn" type="button" aria-label="Bật tắt phụ đề" aria-pressed="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 12h4"/><path d="M13 12h4"/><path d="M7 15h10"/></svg></button><span id="subLabel">Phụ đề: bật</span></div>
+      </div>
+      <div class="row" style="justify-content:space-between; flex-wrap:wrap">
+        <button class="btn small" id="replayBtn" type="button">Nghe lại</button>
+        <label class="mode row" style="gap:6px"><input type="checkbox" id="handsfree" checked> Tự nghe sau khi nhân vật nói</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+const T = 24, COLS = 15, ROWS = 17;
+const RAW = [
+  "###############",
+  "#P....k.....EE#",
+  "#..DDDDDDD..EE#",
+  "#.............#",
+  "#.............#",
+  "#..rrrrrrrrr..#",
+  "#..rrrrrrrrr..#",
+  "#..rrrrrrrrr.t#",
+  "#.............#",
+  "#P...........P#",
+  "#SSS.........L#",
+  "#.s...........#",
+  "#.............#",
+  "#.............#",
+  "#.....p.......#",
+  "#.............#",
+  "######XXX######"
+];
+const SOLID = new Set(["#", "D", "S", "P", "E", "L"]);
+const map = RAW.map(r => r.split(""));
+const spawns = {};
+map.forEach((row, y) => row.forEach((c, x) => { if ("ktsp".includes(c)) { spawns[c] = { x, y }; row[x] = "."; } }));
+
+const NPCS = {
+  kenji: { name: "Kenji", role: "Lễ tân", look: "kenji", spawn: spawns.k,
+    persona: "Kenji, a tired but polite Japanese hotel receptionist at Hanami Hotel, Tokyo. Formal, simple English. Facts: the hotel is overbooked tonight and the player's standard room was given away by mistake. Secret: one suite is still free; its normal extra charge is 18,000 yen. Only if the player stays calm and polite AND clearly asks about any other room, an upgrade, or alternatives, he may offer the suite for a small extra charge between 2,500 and 3,000 yen. If the player is rude or demanding his patience drops and he becomes stiff. He does not know other hotels with vacancies." },
+  sarah: { name: "Sarah", role: "Du khách", look: "sarah", spawn: spawns.s,
+    persona: "Sarah, a friendly, chatty Australian backpacker sitting in the lobby, casual English with mild slang. If the player asks where to stay, about hostels, beds, or cheap places, she mentions Sakura Hostel right across the street has free beds for about 3,000 yen a night. Otherwise she makes small talk about Tokyo." },
+  taro: { name: "Taro", role: "Nhân viên hành lý", look: "taro", spawn: spawns.t,
+    persona: "Taro, a shy young bellboy with very limited English, short broken sentences. If the player politely asks about rooms or help, he whispers a hint that there is one suite still free and that the player should ask Kenji-san about an upgrade." }
+};
+
+const $ = id => document.getElementById(id);
+const cv = $("cv"), gctx = cv.getContext("2d");
+gctx.scale(2, 2);
+const hcv = $("homeCv"), hctx = hcv.getContext("2d");
+hctx.scale(2, 2);
+let ctx = gctx;
+let view = "home";
+const INK = "#3B2414";
+
+let S;
+function reset() {
+  S = { px: spawns.p.x, py: spawns.p.y, rx: spawns.p.x, ry: spawns.p.y, face: 1, walk: 0,
+    wallet: 12400, minutes: 21 * 60 + 40, hints: 2,
+    flags: { suite: false, hostel: false }, ended: null, feedback: [], busy: false, target: null, patience: 5 };
+  for (const k in NPCS) { const n = NPCS[k]; n.x = n.spawn.x; n.y = n.spawn.y; n.history = []; }
+  bubbles = {};
+  $("bubbles").innerHTML = "";
+  $("end").hidden = true;
+  $("hintText").textContent = "";
+  hud();
+}
+
+function hud() {
+  $("wallet").textContent = S.wallet.toLocaleString("vi-VN");
+  const h = Math.floor(S.minutes / 60) % 24, m = S.minutes % 60;
+  $("clock").textContent = String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+  $("hintLabel").textContent = "Gợi ý · " + S.hints;
+  $("hintBtn").disabled = S.hints <= 0 || S.busy;
+  $("cclock").textContent = $("clock").textContent;
+  $("sendBtn").disabled = S.busy;
+}
+
+function npcAt(x, y) { for (const k in NPCS) if (NPCS[k].x === x && NPCS[k].y === y) return k; return null; }
+function blocked(x, y) {
+  if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return true;
+  return SOLID.has(map[y][x]) || !!npcAt(x, y);
+}
+
+let toastTimer;
+function toast(msg, ms) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3200);
+}
+
+function step(dx, dy) {
+  if (S.ended) return false;
+  if (dx) S.face = dx;
+  const nx = S.px + dx, ny = S.py + dy;
+  if (blocked(nx, ny)) return false;
+  if (map[ny][nx] === "X") {
+    if (S.flags.hostel) { S.px = nx; S.py = ny; setTimeout(() => end("hostel"), 250); return true; }
+    toast("Chưa biết đi đâu thì đừng ra ngoài. Hỏi thêm mọi người đã.");
+    return false;
+  }
+  S.px = nx; S.py = ny;
+  updateTalk();
+  return true;
+}
+
+function nearest() {
+  let best = null, bd = 99;
+  for (const k in NPCS) {
+    const n = NPCS[k], d = Math.hypot(n.x - S.px, n.y - S.py);
+    if (d < bd) { bd = d; best = k; }
+  }
+  return bd <= 2.3 ? best : null;
+}
+
+let active = null;
+function updateTalk() {
+  const n = S.ended ? null : nearest();
+  if (n !== active) {
+    active = n;
+    $("talkForm").hidden = !n;
+    $("idle").hidden = !!n;
+    $("err").hidden = true;
+    $("hintText").textContent = "";
+    if (n) $("talkLabel").textContent = "Nói với " + NPCS[n].name + " · " + NPCS[n].role.toLowerCase();
+  }
+}
+
+/* movement */
+let held = null;
+const KEYS = { arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0] };
+document.addEventListener("keydown", e => {
+  if (view !== "level" || callOpen) return;
+  const v = KEYS[(e.key || "").toLowerCase()];
+  if (v) { e.preventDefault(); held = v; S.target = null; }
+  if (e.key === "Enter" && active && NPCS[active]) { e.preventDefault(); openCall(); }
+});
+document.addEventListener("keyup", e => { const v = KEYS[(e.key || "").toLowerCase()]; if (v && held === v) held = null; });
+[["up", [0, -1]], ["down", [0, 1]], ["left", [-1, 0]], ["right", [1, 0]]].forEach(([id, v]) => {
+  const b = $(id);
+  b.addEventListener("pointerdown", e => { e.preventDefault(); held = v; S.target = null; step(v[0], v[1]); lastStep = performance.now(); });
+  ["pointerup", "pointerleave", "pointercancel"].forEach(ev => b.addEventListener(ev, () => { if (held === v) held = null; }));
+});
+cv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect();
+  S.target = { x: Math.floor((e.clientX - r.left) / r.width * COLS), y: Math.floor((e.clientY - r.top) / r.height * ROWS) };
+});
+let lastStep = 0;
+function moveTick(now) {
+  if (callOpen) return;
+  if (now - lastStep < 150) return;
+  if (held) { step(held[0], held[1]); lastStep = now; return; }
+  if (S.target) {
+    const dx = Math.sign(S.target.x - S.px), dy = Math.sign(S.target.y - S.py);
+    if (!dx && !dy) { S.target = null; return; }
+    const moved = (Math.abs(S.target.x - S.px) >= Math.abs(S.target.y - S.py))
+      ? (dx && step(dx, 0)) || (dy && step(0, dy))
+      : (dy && step(0, dy)) || (dx && step(dx, 0));
+    if (!moved) S.target = null;
+    lastStep = now;
+  }
+}
+
+/* ---------- drawing: cozy 3/4 view ---------- */
+function rr(x, y, w, h, r, fill, lw) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (lw !== 0) { ctx.lineWidth = lw || 1.6; ctx.strokeStyle = INK; ctx.stroke(); }
+}
+function circ(x, y, r, fill, lw) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (lw !== 0) { ctx.lineWidth = lw || 1.6; ctx.strokeStyle = INK; ctx.stroke(); }
+}
+function ell(x, y, rx, ry, fill) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill(); }
+
+function drawFloor() {
+  for (let y = 1; y < ROWS - 1; y++) {
+    for (let x = 1; x < COLS - 1; x++) {
+      ctx.fillStyle = y % 2 ? "#EBC99B" : "#E7C292";
+      ctx.fillRect(x * T, y * T, T, T);
+      ctx.fillStyle = "#D6AD78";
+      ctx.fillRect(x * T, y * T + T - 1, T, 1);
+      if ((x + y * 3) % 4 === 0) ctx.fillRect(x * T, y * T, 1, T - 1);
+    }
+  }
+  /* rug */
+  rr(3 * T + 2, 5 * T + 2, 9 * T - 4, 3 * T - 4, 6, "#C9503C", 1.8);
+  rr(3 * T + 7, 5 * T + 7, 9 * T - 14, 3 * T - 14, 4, null, 0);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "#F2C14E"; ctx.stroke();
+  ctx.fillStyle = "#F2C14E";
+  for (let i = 0; i < 4; i++) { ctx.beginPath(); const cx = 4.6 * T + i * 1.95 * T, cy = 6.5 * T; ctx.moveTo(cx, cy - 6); ctx.lineTo(cx + 6, cy); ctx.lineTo(cx, cy + 6); ctx.lineTo(cx - 6, cy); ctx.closePath(); ctx.fill(); }
+  /* back wall face */
+  ctx.fillStyle = "#F6E7CF"; ctx.fillRect(0, 0, COLS * T, T);
+  ctx.fillStyle = "#A5673F"; ctx.fillRect(0, T - 7, COLS * T, 7);
+  ctx.fillStyle = INK; ctx.fillRect(0, T - 1, COLS * T, 1.5);
+  /* sign */
+  rr(3.4 * T, 3, 5.2 * T, 13, 4, "#2F4A7A", 1.4);
+  ctx.fillStyle = "#FFE7A8"; ctx.font = "800 9px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("HANAMI HOTEL", 6 * T, 10);
+  /* clock + picture */
+  circ(10.5 * T, 10, 7, "#FFFFFF", 1.4);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(10.5 * T, 10); ctx.lineTo(10.5 * T, 6); ctx.moveTo(10.5 * T, 10); ctx.lineTo(10.5 * T + 3, 11); ctx.stroke();
+  rr(1.3 * T, 3, 22, 14, 2, "#BFE3EA", 1.4);
+  ctx.fillStyle = "#6E8BB5"; ctx.beginPath(); ctx.moveTo(1.3 * T + 3, 16); ctx.lineTo(1.3 * T + 11, 6); ctx.lineTo(1.3 * T + 19, 16); ctx.fill();
+  ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.moveTo(1.3 * T + 8.5, 9); ctx.lineTo(1.3 * T + 11, 6); ctx.lineTo(1.3 * T + 13.5, 9); ctx.fill();
+  /* side walls */
+  ctx.fillStyle = "#8E5632";
+  ctx.fillRect(0, T, T, (ROWS - 2) * T); ctx.fillRect((COLS - 1) * T, T, T, (ROWS - 2) * T);
+  ctx.fillStyle = "#A5673F";
+  ctx.fillRect(T - 5, T, 5, (ROWS - 2) * T); ctx.fillRect((COLS - 1) * T, T, 5, (ROWS - 2) * T);
+  /* front wall with door */
+  ctx.fillStyle = "#8E5632"; ctx.fillRect(0, (ROWS - 1) * T, COLS * T, T);
+  rr(6 * T, (ROWS - 1) * T + 2, 3 * T, T - 2, 3, "#BFE3EA", 1.6);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(7.5 * T, (ROWS - 1) * T + 2); ctx.lineTo(7.5 * T, ROWS * T); ctx.stroke();
+  rr(6.85 * T, (ROWS - 1) * T - 6, 1.3 * T, 10, 3, "#6BBF59", 1.4);
+  ctx.fillStyle = "#FFFFFF"; ctx.font = "800 8px 'Baloo 2', sans-serif"; ctx.fillText("EXIT", 7.5 * T, (ROWS - 1) * T - 1);
+}
+
+/* furniture drawn y-sorted with people */
+function deskObj() {
+  const x = 3 * T, y = 2 * T;
+  rr(x, y + 4, 7 * T, T + 2, 4, "#A8653B", 1.8);
+  ctx.fillStyle = "#8E5632"; for (let i = 1; i < 7; i++) ctx.fillRect(x + i * T, y + 14, 1.5, T - 10);
+  rr(x - 3, y - 6, 7 * T + 6, 12, 4, "#D69A62", 1.8);
+  rr(x + 8, y - 20, 18, 14, 2, "#3B3F4A", 1.4);
+  ctx.fillStyle = "#8FD3DD"; ctx.fillRect(x + 10, y - 18, 14, 9);
+  ctx.fillStyle = "#F2C14E"; ctx.beginPath(); ctx.arc(x + 6 * T, y - 4, 5, Math.PI, 0); ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();
+  rr(x + 3.2 * T, y - 9, 16, 5, 1, "#FFFFFF", 1.2);
+}
+function sofaObj() {
+  const x = 1 * T, y = 10 * T;
+  rr(x + 1, y - 10, 3 * T - 2, 16, 6, "#3E8E9E", 1.8);
+  rr(x + 1, y + 2, 3 * T - 2, T - 4, 5, "#57A9B8", 1.8);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(x + T, y + 4); ctx.lineTo(x + T, y + T - 4); ctx.moveTo(x + 2 * T, y + 4); ctx.lineTo(x + 2 * T, y + T - 4); ctx.stroke();
+  rr(x - 2, y - 2, 7, T, 3, "#3E8E9E", 1.6);
+  rr(x + 3 * T - 5, y - 2, 7, T, 3, "#3E8E9E", 1.6);
+}
+function plantObj(tx, ty) {
+  const cx = tx * T + T / 2, by = ty * T + T - 2;
+  ell(cx, by, 9, 3, "rgba(59,36,20,.18)");
+  rr(cx - 7, by - 12, 14, 12, 3, "#D9774A", 1.6);
+  circ(cx - 6, by - 18, 6, "#5DAF5A", 1.4);
+  circ(cx + 6, by - 18, 6, "#5DAF5A", 1.4);
+  circ(cx, by - 24, 7, "#6BBF59", 1.4);
+}
+function elevObj() {
+  const x = 12 * T, y = 1 * T;
+  rr(x + 2, y - 10, 2 * T - 4, 2 * T + 6, 3, "#9AA3AE", 1.8);
+  rr(x + 6, y - 2, 2 * T - 12, 2 * T - 4, 2, "#D5DCE4", 1.4);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x + T, y - 2); ctx.lineTo(x + T, y + 2 * T - 6); ctx.stroke();
+  rr(x + T - 7, y - 8, 14, 6, 2, "#3B3F4A", 1);
+  ctx.fillStyle = "#FFC93C"; ctx.font = "800 6px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("3F", x + T, y - 5);
+}
+function cartObj() {
+  const x = 13 * T, y = 10 * T;
+  rr(x + 2, y + 2, 7, 12, 2, "#E4573D", 1.3);
+  rr(x + 10, y - 2, 11, 16, 2, "#4CB8C4", 1.3);
+  ctx.strokeStyle = "#C9962E"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 2, y - 10); ctx.lineTo(x + 2, y + T - 4); ctx.moveTo(x + T - 2, y - 10); ctx.lineTo(x + T - 2, y + T - 4); ctx.moveTo(x + 2, y - 10); ctx.lineTo(x + T - 2, y - 10); ctx.stroke();
+  rr(x, y + T - 6, T, 4, 2, "#C9962E", 1.3);
+}
+
+const LOOKS = {
+  me: { body: "#FFC93C", hair: "#3B2414", extra: "cap" },
+  kenji: { body: "#2F4A7A", hair: "#1E1E24", extra: "tie" },
+  sarah: { body: "#6BBF59", hair: "#F2D06B", extra: "pony" },
+  taro: { body: "#D9483B", hair: "#2A2A2E", extra: "bellcap" }
+};
+function chibi(px, py, lookKey, face, bob, name) {
+  const L = LOOKS[lookKey];
+  const cx = px * T + T / 2, feet = py * T + T - 3 - bob;
+  ell(cx, py * T + T - 3, 9, 3.5, "rgba(59,36,20,.22)");
+  if (L.extra === "cap") rr(cx - 9 - face * 2, feet - 16, 6, 10, 2, "#4C78B5", 1.4);
+  rr(cx - 7, feet - 13, 14, 13, 5, L.body, 1.6);
+  if (L.extra === "tie") { ctx.fillStyle = "#FFFFFF"; ctx.fillRect(cx - 2.5, feet - 13, 5, 4); ctx.fillStyle = "#E4573D"; ctx.fillRect(cx - 1, feet - 10, 2, 6); }
+  if (L.extra === "bellcap") { ctx.fillStyle = "#F2C14E"; ctx.fillRect(cx - 1, feet - 12, 2, 9); }
+  const hy = feet - 22;
+  circ(cx, hy, 10, "#F6D5B5", 1.6);
+  ctx.fillStyle = L.hair;
+  ctx.beginPath(); ctx.arc(cx, hy - 1, 10, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.beginPath(); ctx.arc(cx, hy, 10, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+  if (L.extra === "pony") circ(cx - face * 10, hy - 2, 4, L.hair, 1.3);
+  if (L.extra === "cap") { rr(cx - 10, hy - 11, 20, 6, 3, "#E4573D", 1.4); rr(cx + face * 4 - 6, hy - 7, 12, 3, 1.5, "#E4573D", 1.2); }
+  if (L.extra === "bellcap") rr(cx - 6, hy - 13, 12, 5, 1.5, "#D9483B", 1.3);
+  const ex = face * 1.5;
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(cx - 3.5 + ex, hy + 1, 1.4, 0, 7); ctx.arc(cx + 3.5 + ex, hy + 1, 1.4, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(228,87,61,.35)";
+  ctx.beginPath(); ctx.arc(cx - 6 + ex, hy + 4, 2, 0, 7); ctx.arc(cx + 6 + ex, hy + 4, 2, 0, 7); ctx.fill();
+  if (name) {
+    ctx.font = "800 8px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const w = ctx.measureText(name).width + 10;
+    rr(cx - w / 2, hy - 25, w, 11, 5, lookKey === "me" ? "#FFC93C" : "#FFF8EC", 1.3);
+    ctx.fillStyle = INK; ctx.fillText(name, cx, hy - 19.3);
+  }
+  return { cx, top: hy - 25 };
+}
+
+function draw(now) {
+  drawFloor();
+  if (S.target) { ctx.strokeStyle = "rgba(76,184,196,.9)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(S.target.x * T + T / 2, S.target.y * T + T / 2 + 4, 8, 4, 0, 0, 7); ctx.stroke(); }
+  const items = [
+    { y: 3.1, fn: deskObj }, { y: 11, fn: sofaObj }, { y: 3.2, fn: elevObj }, { y: 11, fn: cartObj },
+    { y: 2, fn: () => plantObj(1, 1) }, { y: 10, fn: () => plantObj(1, 9) }, { y: 10, fn: () => plantObj(13, 9) }
+  ];
+  for (const k in NPCS) {
+    const n = NPCS[k];
+    items.push({ y: n.y + 1, fn: () => {
+      const bob = Math.sin(now / 500 + n.x) > 0.6 ? 1 : 0;
+      const p = chibi(n.x, n.y, n.look, k === "sarah" ? 1 : -1, bob, n.name);
+      if (k === "kenji") {
+        for (let i = 0; i < 5; i++) {
+          const hx = p.cx - 16 + i * 8, hy = p.top - 7;
+          ctx.fillStyle = i < S.patience ? "#E4573D" : "#E8D9C4";
+          ctx.beginPath(); ctx.moveTo(hx, hy + 2); ctx.arc(hx - 1.6, hy, 1.9, Math.PI * 0.75, Math.PI * 1.9); ctx.arc(hx + 1.6, hy, 1.9, Math.PI * 1.1, Math.PI * 0.25); ctx.lineTo(hx, hy + 3.5); ctx.closePath(); ctx.fill();
+          ctx.lineWidth = 0.9; ctx.strokeStyle = INK; ctx.stroke();
+        }
+      }
+      if (k === active && !S.busy) {
+        const ay = p.top - (k === "kenji" ? 18 : 8) - Math.abs(Math.sin(now / 250)) * 3;
+        ctx.fillStyle = "#FFC93C"; ctx.beginPath(); ctx.moveTo(p.cx - 5, ay - 6); ctx.lineTo(p.cx + 5, ay - 6); ctx.lineTo(p.cx, ay); ctx.closePath(); ctx.fill();
+        ctx.lineWidth = 1.3; ctx.strokeStyle = INK; ctx.stroke();
+      }
+    }});
+  }
+  const moving = Math.abs(S.rx - S.px) + Math.abs(S.ry - S.py) > 0.02;
+  items.push({ y: S.ry + 1, fn: () => chibi(S.rx, S.ry, "me", S.face, moving ? Math.abs(Math.sin(now / 70)) * 2 : 0, "Bạn") });
+  items.sort((a, b) => a.y - b.y).forEach(i => i.fn());
+}
+
+/* speech bubbles */
+let bubbles = {};
+function bubble(id, text, kind, who) {
+  let b = bubbles[id];
+  if (!b) { const el = document.createElement("div"); $("bubbles").appendChild(el); b = bubbles[id] = { el }; }
+  b.el.className = "bubble " + kind;
+  b.el.innerHTML = "";
+  if (who) { const w = document.createElement("span"); w.className = "who"; w.textContent = who; b.el.appendChild(w); }
+  b.el.appendChild(document.createTextNode(text));
+  b.until = performance.now() + 14000;
+  b.el.hidden = false;
+}
+function placeBubbles(now) {
+  const st = $("stage"), sc = st.clientWidth / (COLS * T);
+  for (const id in bubbles) {
+    const b = bubbles[id];
+    if (now > b.until) { b.el.hidden = true; continue; }
+    const p = id === "me" ? { x: S.rx, y: S.ry } : NPCS[id];
+    if (id !== "me" && Math.hypot(p.x - S.px, p.y - S.py) > 5) { b.el.hidden = true; continue; }
+    b.el.hidden = false;
+    const cx = (p.x * T + T / 2) * sc;
+    let top = (p.y * T - 22) * sc;
+    const h = b.el.offsetHeight, w = b.el.offsetWidth;
+    const below = top - h - 10 < 4;
+    b.el.classList.toggle("below", below);
+    if (below) top = (p.y * T + T + 2) * sc;
+    const half = w / 2, left = Math.min(Math.max(cx, half + 6), st.clientWidth - half - 6);
+    b.el.style.left = left + "px";
+    b.el.style.top = top + "px";
+  }
+}
+
+function loop(now) {
+  if (view === "home") {
+    ctx = hctx;
+    drawHome(now);
+  } else {
+    ctx = gctx;
+    moveTick(now);
+    S.rx += (S.px - S.rx) * 0.3; S.ry += (S.py - S.ry) * 0.3;
+    draw(now);
+    placeBubbles(now);
+    if (callOpen) drawPortrait(now);
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- home: city map ---------- */
+const STORIES = [
+  { id: "airport", place: "Sân bay", title: "Đi máy bay", status: "soon", level: "A2",
+    desc: "Từ quầy check-in đến lúc hạ cánh: hành lý quá cân, bị hỏi ở cửa an ninh, xin đổi chỗ ngồi.",
+    funcs: ["Trả lời câu hỏi", "Xử lý hành lý quá cân", "Đổi chỗ ngồi"], box: { x: 10, y: 40, w: 152, h: 136 } },
+  { id: "hotel", place: "Khách sạn Hanami", title: "Du lịch Tokyo", status: "open", level: "A2–B1",
+    desc: "Chuyến đi Tokyo đầu tiên: phòng bị nhường cho khách khác, lỡ tàu đêm, gọi món ở quán không có thực đơn tiếng Anh.",
+    funcs: ["Phàn nàn lịch sự", "Xin phương án khác", "Hỏi đường"], box: { x: 198, y: 56, w: 154, h: 122 } },
+  { id: "mall", place: "Trung tâm thương mại", title: "Mua quần áo", status: "soon", level: "A2",
+    desc: "Tìm áo đúng size, hỏi màu khác, đổi món đồ bị lỗi và mặc cả ở khu hàng giảm giá.",
+    funcs: ["Hỏi size và màu", "Đổi trả", "Mặc cả"], box: { x: 10, y: 272, w: 152, h: 94 } },
+  { id: "office", place: "Văn phòng", title: "Ngày đầu ở công ty nước ngoài", status: "locked", need: 6, level: "B1–B2",
+    desc: "Tự giới thiệu với đồng nghiệp, small talk với sếp, nhờ giúp khi chưa biết dùng hệ thống.",
+    funcs: ["Giới thiệu bản thân", "Small talk", "Nhờ giúp đỡ"], box: { x: 206, y: 244, w: 84, h: 140 } },
+  { id: "cafe", place: "Quán cà phê", title: "Kết bạn", status: "locked", need: 10, level: "B1",
+    desc: "Bắt chuyện với người lạ, mời đi chơi và từ chối khéo khi chưa sẵn sàng.",
+    funcs: ["Small talk", "Mời", "Từ chối khéo"], box: { x: 288, y: 320, w: 70, h: 66 } }
+];
+let selected = "hotel";
+function bestStars() { try { return Number(localStorage.getItem("hanami-best") || 0) || 0; } catch (e) { return 0; } }
+
+function tree(x, y) {
+  ell(x, y + 2, 9, 3, "rgba(59,36,20,.2)");
+  rr(x - 2, y - 8, 4, 10, 1, "#8E5632", 1.2);
+  circ(x - 5, y - 12, 7, "#5DAF5A", 1.3);
+  circ(x + 5, y - 12, 7, "#5DAF5A", 1.3);
+  circ(x, y - 19, 8, "#6BBF59", 1.3);
+}
+function windows(x, y, cols, rows, w, h, gx, gy, fill) {
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) rr(x + c * (w + gx), y + r * (h + gy), w, h, 1.5, fill, 1.1);
+}
+function bAirport() {
+  rr(16, 118, 140, 54, 4, "#DDE6EE", 1.8);
+  rr(12, 104, 148, 16, 4, "#8FA3B8", 1.8);
+  rr(24, 128, 124, 18, 3, "#8FD3DD", 1.3);
+  rr(74, 150, 24, 22, 2, "#5C7A99", 1.4);
+  rr(126, 62, 16, 44, 2, "#DDE6EE", 1.6);
+  rr(116, 46, 36, 18, 5, "#8FD3DD", 1.6);
+  ctx.fillStyle = "#FFFFFF"; ctx.font = "800 8px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("AIRPORT", 60, 112.5);
+  ctx.fillStyle = "#FFFFFF"; ctx.strokeStyle = INK; ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.moveTo(30, 92); ctx.lineTo(70, 88); ctx.lineTo(78, 82); ctx.lineTo(82, 88); ctx.lineTo(96, 87); ctx.lineTo(96, 92); ctx.lineTo(82, 93); ctx.lineTo(76, 99); ctx.lineTo(72, 93); ctx.lineTo(30, 95); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+function bHotel() {
+  rr(206, 78, 138, 98, 4, "#F6E7CF", 1.8);
+  rr(200, 62, 150, 20, 6, "#E4573D", 1.8);
+  ctx.fillStyle = "#FFF8EC"; ctx.font = "800 10px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("HANAMI HOTEL", 275, 72.5);
+  windows(216, 88, 5, 2, 18, 14, 7, 8, "#BFE3EA");
+  rr(258, 140, 34, 36, 3, "#A8653B", 1.6);
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(275, 140); ctx.lineTo(275, 176); ctx.stroke();
+  rr(214, 146, 14, 22, 2, "#E4573D", 1.2);
+  rr(322, 146, 14, 22, 2, "#E4573D", 1.2);
+}
+function bMall() {
+  rr(16, 292, 140, 72, 4, "#F4C6D6", 1.8);
+  rr(12, 278, 148, 16, 4, "#D46A92", 1.8);
+  ctx.fillStyle = "#FFF8EC"; ctx.font = "800 9px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("CITY MALL", 86, 286.5);
+  rr(24, 302, 124, 34, 3, "#BFE3EA", 1.4);
+  rr(36, 312, 10, 18, 2, "#FFC93C", 1.1); rr(54, 310, 10, 20, 2, "#4CB8C4", 1.1); rr(72, 312, 10, 18, 2, "#E4573D", 1.1);
+  rr(74, 340, 26, 24, 2, "#5C7A99", 1.4);
+}
+function bOffice() {
+  rr(212, 262, 72, 120, 4, "#9DB8E6", 1.8);
+  rr(208, 250, 80, 14, 3, "#4C6FB5", 1.8);
+  windows(220, 272, 3, 5, 14, 12, 7, 7, "#E6F1FB");
+  rr(236, 360, 24, 22, 2, "#3B3F4A", 1.4);
+}
+function bCafe() {
+  rr(294, 338, 58, 46, 4, "#E9C79A", 1.8);
+  rr(290, 326, 66, 14, 3, "#E4573D", 1.6);
+  ctx.fillStyle = "#FFF8EC"; for (let i = 0; i < 4; i++) ctx.fillRect(296 + i * 16, 328, 7, 10);
+  ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.strokeRect(290.8, 326.8, 64.4, 12.4);
+  rr(300, 348, 22, 16, 2, "#BFE3EA", 1.2);
+  rr(328, 352, 16, 32, 2, "#8E5632", 1.3);
+}
+function lock(x, y) {
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y - 2, 3, Math.PI, 0); ctx.stroke();
+  rr(x - 4, y - 2, 8, 6, 1.5, "#FFC93C", 1.2);
+}
+function placeLabel(s, now) {
+  let cx = s.box.x + s.box.w / 2; const cy = s.box.y - 12;
+  ctx.font = "800 10px 'Baloo 2', sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const tw = ctx.measureText(s.place).width;
+  const extra = s.status === "locked" ? 14 : 0;
+  const w = tw + 16 + extra;
+  cx = Math.min(Math.max(cx, w / 2 + 4), 360 - w / 2 - 4);
+  rr(cx - w / 2, cy - 8, w, 16, 8, s.status === "open" ? "#FFC93C" : "#FFF8EC", 1.6);
+  ctx.fillStyle = INK; ctx.fillText(s.place, cx + extra / 2, cy + 0.5);
+  if (s.status === "locked") lock(cx - w / 2 + 11, cy + 1);
+  if (s.status === "open") {
+    const ay = cy - 13 - Math.abs(Math.sin(now / 260)) * 4;
+    ctx.fillStyle = "#6BBF59"; ctx.beginPath(); ctx.moveTo(cx - 6, ay - 7); ctx.lineTo(cx + 6, ay - 7); ctx.lineTo(cx, ay); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+  }
+}
+function drawHome(now) {
+  ctx.fillStyle = "#A8D98A"; ctx.fillRect(0, 0, 360, 460);
+  ctx.fillStyle = "#9CD07D";
+  [[60, 210, 30], [300, 214, 26], [120, 420, 40], [300, 420, 34], [40, 20, 24]].forEach(([x, y, r]) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); });
+  ctx.fillStyle = "#F1D9A8"; ctx.fillRect(0, 194, 360, 32); ctx.fillRect(164, 0, 32, 460);
+  ctx.fillStyle = "#D9B98A"; ctx.fillRect(0, 193, 360, 1.5); ctx.fillRect(0, 226, 360, 1.5); ctx.fillRect(163, 0, 1.5, 460); ctx.fillRect(196, 0, 1.5, 460);
+  ctx.fillStyle = "#FFFFFF"; for (let x = 6; x < 360; x += 22) if (x < 156 || x > 200) ctx.fillRect(x, 209, 10, 2);
+  for (let y = 6; y < 460; y += 22) if (y < 186 || y > 232) ctx.fillRect(179, y, 2, 10);
+  circ(180, 210, 20, "#E7D3B0", 1.6); circ(180, 210, 13, "#8FD3DD", 1.4); circ(180, 207, 4, "#FFFFFF", 1.2);
+  const sel = STORIES.find(s => s.id === selected);
+  if (sel) { ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 2.5; ctx.strokeStyle = "#FFC93C"; rr(sel.box.x - 2, sel.box.y - 24, sel.box.w + 4, sel.box.h + 26, 10, null, 0); ctx.stroke(); ctx.restore(); }
+  [[226, 30], [350, 196], [20, 260]].forEach(([x, y]) => tree(x, y));
+  bAirport(); bHotel();
+  [[150, 262], [310, 262]].forEach(([x, y]) => tree(x, y));
+  bOffice(); bMall(); bCafe();
+  [[40, 420], [150, 440], [236, 430], [330, 430]].forEach(([x, y]) => tree(x, y));
+  const bob = Math.sin(now / 400) > 0.5 ? 1 : 0;
+  chibi((136 - 12) / T, (246 - 21) / T, "me", 1, bob, "Bạn");
+  STORIES.forEach(s => placeLabel(s, now));
+}
+
+function renderSheet() {
+  const s = STORIES.find(x => x.id === selected), stars = bestStars();
+  const el = $("sheet"); el.innerHTML = "";
+  const head = document.createElement("div"); head.className = "row"; head.style.justifyContent = "space-between";
+  const k = document.createElement("span"); k.className = "kicker"; k.textContent = s.place;
+  const st = document.createElement("span"); st.className = "status " + s.status;
+  st.textContent = s.status === "open" ? "Đang mở" : s.status === "soon" ? "Sắp ra mắt" : "Cần " + s.need + " sao";
+  head.append(k, st);
+  const h = document.createElement("h2"); h.textContent = s.title;
+  const p = document.createElement("p"); p.textContent = s.desc;
+  const chips = document.createElement("div"); chips.className = "chips";
+  const lv = document.createElement("span"); lv.className = "chip2 lv"; lv.textContent = s.level; chips.appendChild(lv);
+  s.funcs.forEach(f => { const c = document.createElement("span"); c.className = "chip2"; c.textContent = f; chips.appendChild(c); });
+  el.append(head, h, p, chips);
+  const b = document.createElement("button"); b.type = "button"; b.className = "btn go";
+  if (s.status === "open") {
+    const prog = document.createElement("p"); prog.style.fontFamily = "var(--font-ui)"; prog.style.fontWeight = "700";
+    prog.textContent = "Màn 1/10 · Khách sạn hết phòng · tốt nhất " + "★".repeat(stars) + "☆".repeat(Math.max(0, 3 - stars));
+    el.appendChild(prog);
+    b.textContent = stars ? "Chơi lại màn 1" : "Vào màn 1";
+    b.addEventListener("click", startLevel);
+  } else {
+    b.textContent = s.status === "soon" ? "Sắp ra mắt" : "Còn khóa";
+    b.disabled = true;
+  }
+  el.appendChild(b);
+  $("starTotal").textContent = stars + " sao";
+}
+
+let homeToastTimer;
+function homeToast(msg) {
+  const t = $("homeToast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(homeToastTimer); homeToastTimer = setTimeout(() => { t.hidden = true; }, 3000);
+}
+hcv.addEventListener("pointerdown", e => {
+  const r = hcv.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 360, y = (e.clientY - r.top) / r.height * 460;
+  const s = STORIES.find(s => x >= s.box.x && x <= s.box.x + s.box.w && y >= s.box.y - 22 && y <= s.box.y + s.box.h);
+  if (s) { selected = s.id; renderSheet(); }
+});
+document.querySelectorAll(".soonNav").forEach(b => b.addEventListener("click", () => homeToast("Phần này sẽ có ở bản sau.")));
+$("dailyBtn").addEventListener("click", () => homeToast(bestStars() ? "Ôn tập hằng ngày sẽ có ở bản sau." : "Chơi xong màn đầu tiên để có câu ôn tập."));
+
+function startLevel() {
+  view = "level";
+  $("homeView").hidden = true; $("levelView").hidden = false;
+  reset(); active = null; updateTalk();
+  window.scrollTo(0, 0);
+  toast("Phòng của bạn vừa bị nhường cho khách khác! Tìm chỗ ngủ tối nay nào.", 7000);
+}
+function goHome() {
+  closeCall();
+  view = "home"; held = null;
+  $("levelView").hidden = true; $("homeView").hidden = false;
+  renderSheet();
+  window.scrollTo(0, 0);
+}
+$("backBtn").addEventListener("click", goHome);
+
+/* NPC brain: Claude in the viewer, the API from a local file, scripted fallback otherwise */
+let sample = null, aiOff = false;
+const inViewer = !!window.claude;
+const PERMANENT = new Set(["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"]);
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const hasTTS = "speechSynthesis" in window;
+if (inViewer) {
+  (async () => { try { sample = await window.claude.use("sample"); } catch (e) { sample = null; } })();
+} else {
+  $("keyBox").hidden = false;
+  try { $("apiKey").value = localStorage.getItem("speak-key") || ""; } catch (e) {}
+  $("apiKey").addEventListener("change", () => { try { localStorage.setItem("speak-key", $("apiKey").value.trim()); } catch (e) {} });
+}
+function clockStr() { return $("clock").textContent; }
+function parseJSON(text) {
+  const a = text.indexOf("{"), b = text.lastIndexOf("}");
+  if (a < 0 || b <= a) throw { code: "invalid_json" };
+  return JSON.parse(text.slice(a, b + 1));
+}
+async function ask(prompt) {
+  if (inViewer) {
+    if (!sample || aiOff) throw { code: "no_brain" };
+    try { return await sample.json(prompt, { modelTier: "quick", cache: false }); }
+    catch (e) { if (PERMANENT.has(e && e.code)) aiOff = true; throw e; }
+  }
+  const key = ($("apiKey").value || "").trim();
+  if (!key) throw { code: "no_key" };
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+    body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 600, messages: [{ role: "user", content: prompt }] })
+  });
+  if (!r.ok) throw { code: "http_" + r.status };
+  const j = await r.json();
+  return parseJSON((j.content || []).map(c => c.text || "").join(""));
+}
+function histOf(n, k) { return n.history.slice(-(k || 8)).map(h => (h.who === "me" ? "Player: " : n.name + ": ") + h.text).join("\n") || "(nothing yet)"; }
+
+async function brain(id, text) {
+  const n = NPCS[id];
+  const state = id === "kenji"
+    ? "Kenji patience: " + S.patience + "/5. Suite already offered: " + S.flags.suite + "."
+    : "Player already knows about the hostel: " + S.flags.hostel + ".";
+  const prompt =
+    "You play one NPC in a spoken-English practice game. The player is a Vietnamese traveler in a Tokyo hotel lobby at " + clockStr() + ". " +
+    "Stay fully in character. Reply in natural spoken English, at most 2 short sentences, and usually end with something the player can answer. Never teach or correct inside the reply. If the player does not use English, react confused in character.\n" +
+    "The player's line comes from speech-to-text: ignore missing punctuation and capitalization.\n\n" +
+    "NPC: " + n.persona + "\n\nState: " + state + "\n\nConversation so far:\n" + histOf(n) +
+    "\n\nPlayer just said: \"" + text.slice(0, 300) + "\"\n\n" +
+    "Reply with only a JSON object: {\"reply\": string, \"patience_delta\": integer from -2 to 1 (how this line affects the NPC's patience), " +
+    "\"agreed\": boolean (true only if the player clearly accepts a concrete room offer from this NPC), \"charge_yen\": number or null (the extra charge agreed), " +
+    "\"reveals\": \"suite\" | \"hostel\" | \"none\" (information this reply gives), " +
+    "\"score\": 1 | 2 | 3 (3 = natural and polite, 2 = understandable with small issues, 1 = hard to understand or rude), " +
+    "\"better\": string (a more natural or polite way to say the player's line, or \"\" if already good), " +
+    "\"issue_vi\": string (under 12 words in Vietnamese naming what to improve, or \"\"), " +
+    "\"new_word\": string (one useful phrase from your reply worth learning, or \"\")}";
+  try {
+    const r = await ask(prompt);
+    if (r && typeof r.reply === "string") return r;
+  } catch (e) {}
+  return scripted(id, text);
+}
+
+function scripted(id, text) {
+  const t = text.toLowerCase();
+  const polite = /please|could|would|sorry|thank|excuse/.test(t);
+  const rude = /\bnow\b|must|unacceptable|ridiculous|stupid|!!/.test(t);
+  const r = { reply: "", patience_delta: 0, agreed: false, charge_yen: null, reveals: "none", score: rude ? 1 : polite ? 3 : 2, new_word: "",
+    better: polite ? "" : "Could you please " + text.replace(/[.?!]+$/, "").replace(/^i want /i, "").toLowerCase() + "?",
+    issue_vi: polite ? "" : "Thêm 'could you' hoặc 'please' cho lịch sự" };
+  if (id === "kenji") {
+    if (rude) { r.reply = "I understand you are upset. But there is nothing I can do."; r.patience_delta = -2; }
+    else if (S.flags.suite && /yes|ok|okay|deal|take it|sounds good|great/.test(t)) { r.reply = "Wonderful. The suite is yours for 2,500 yen extra. Here is your key."; r.agreed = true; r.charge_yen = 2500; }
+    else if (polite && /suite|upgrade|other room|any room|alternative|anything else|option/.test(t)) { r.reply = "Well... we do have one suite left. I can offer it for 2,500 yen extra tonight. Would that work for you?"; r.reveals = "suite"; r.patience_delta = 1; r.new_word = "Would that work for you?"; }
+    else if (/hotel|nearby|hostel/.test(t)) { r.reply = "I'm sorry, I don't know any hotel with rooms tonight. Is there anything else I can do?"; }
+    else { r.reply = "I'm very sorry. Your room was given to another guest by mistake. How can I help?"; r.patience_delta = polite ? 0 : -1; }
+  } else if (id === "sarah") {
+    if (/hotel|hostel|stay|room|sleep|bed|cheap/.test(t)) { r.reply = "Oh mate, Sakura Hostel right across the street has beds. About 3,000 yen a night!"; r.reveals = "hostel"; r.new_word = "right across the street"; }
+    else r.reply = "Hey! First time in Tokyo? It's wild, right?";
+  } else {
+    if (/room|help|suite|kenji/.test(t)) { r.reply = "Uh... suite... still free. Ask Kenji-san... upgrade, maybe."; r.reveals = "suite"; }
+    else r.reply = "Sorry... English, a little. Luggage?";
+  }
+  return r;
+}
+
+/* ---------- the speaking call that opens when you talk to someone ---------- */
+const VOICE = {
+  kenji: { lang: /en-(US|GB)/i, pitch: 0.9, rate: 0.9, greet: ["I'm terribly sorry about your room tonight. How can I help you?", "Yes? Is there anything else I can do for you?"] },
+  sarah: { lang: /en-AU/i, pitch: 1.15, rate: 1.0, greet: ["Hey there! You look a bit stressed. Everything okay?", "Oh hey, you again! What's up?"] },
+  taro: { lang: /en-(US|GB)/i, pitch: 1.1, rate: 0.85, greet: ["Ah... hello. You need... help? Luggage?", "Ah, hello again..."] }
+};
+let callOpen = false, callNpc = null, subs = true, micOff = !SR, speaking = false, listening = false, lastNpcLine = "";
+let voices = [];
+function loadVoices() { if (hasTTS) voices = speechSynthesis.getVoices(); }
+if (hasTTS) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+function voiceFor(id) {
+  const v = VOICE[id];
+  return voices.find(x => v.lang.test(x.lang)) || voices.find(x => /^en(-|_)US/i.test(x.lang)) || voices.find(x => /^en/i.test(x.lang)) || null;
+}
+function cState(kind, text) { $("ring").className = "ring " + (kind || ""); $("cstate").textContent = text; }
+function patienceText() { return callNpc === "kenji" ? "Kiên nhẫn " + "♥".repeat(S.patience) + "♡".repeat(5 - S.patience) : ""; }
+function cErr(msg) { $("err").textContent = msg; $("err").hidden = !msg; }
+
+function cBubble(who, text) {
+  const d = document.createElement("div");
+  d.className = "cb " + (who === "npc" ? "t" : "me");
+  d.dataset.text = text;
+  if (who === "npc" && !subs) { d.classList.add("hidden-text"); d.textContent = "Phụ đề đang tắt, hãy nghe"; }
+  else d.textContent = text;
+  $("clog").appendChild(d);
+  $("clog").scrollTop = $("clog").scrollHeight;
+}
+function cFeedback(r, effects) {
+  const d = document.createElement("div"); d.className = "cfb";
+  const sc = Math.max(1, Math.min(3, Number(r.score) || 2));
+  const dots = document.createElement("span"); dots.className = "dots";
+  dots.textContent = "●".repeat(sc) + "○".repeat(3 - sc) + (sc === 3 ? "  Tự nhiên lắm" : sc === 2 ? "  Hiểu được" : "  Khó hiểu");
+  d.appendChild(dots);
+  if (r.better) { const b = document.createElement("span"); b.className = "better"; b.textContent = "Tự nhiên hơn: " + r.better; d.appendChild(b); }
+  if (r.issue_vi) { const i = document.createElement("span"); i.textContent = r.issue_vi; d.appendChild(i); }
+  if (r.new_word) { const w = document.createElement("span"); w.textContent = "Cụm hay: " + r.new_word; d.appendChild(w); }
+  effects.forEach(e => { const x = document.createElement("span"); x.className = "eff"; x.textContent = e; d.appendChild(x); });
+  $("clog").appendChild(d);
+  $("clog").scrollTop = $("clog").scrollHeight;
+}
+
+function speak(text) {
+  return new Promise(res => {
+    if (!hasTTS) { setTimeout(res, 300); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text), v = VOICE[callNpc];
+    const vv = voiceFor(callNpc); if (vv) u.voice = vv;
+    u.lang = vv ? vv.lang : "en-US"; u.pitch = v.pitch; u.rate = v.rate;
+    speaking = true; cState("speaking", subs ? "Đang nói…" : "Đang nói… hãy nghe");
+    updateMic();
+    let done = false;
+    const fin = () => { if (done) return; done = true; speaking = false; res(); };
+    u.onend = fin; u.onerror = fin;
+    setTimeout(fin, 2500 + text.length * 110);
+    speechSynthesis.speak(u);
+  });
+}
+async function npcSays(text) {
+  lastNpcLine = text;
+  cBubble("npc", text);
+  bubble(callNpc, text, "npc", NPCS[callNpc].name);
+  await speak(text);
+  if (!callOpen) return;
+  if ($("handsfree").checked && !micOff && !S.ended) listen(); else cIdle();
+}
+function cIdle() {
+  cState("", micOff ? "Đến lượt bạn: gõ câu trả lời" : "Đến lượt bạn: chạm micro để nói");
+  updateMic();
+}
+
+let rec = null, silenceTimer = null;
+function listen() {
+  if (micOff || listening || S.busy || !callOpen) return;
+  if (hasTTS) speechSynthesis.cancel();
+  $("live").textContent = "";
+  rec = new SR();
+  rec.lang = "en-US"; rec.interimResults = true; rec.continuous = true;
+  rec.onresult = ev => {
+    let fin = "", interim = "";
+    for (let i = 0; i < ev.results.length; i++) {
+      const t = ev.results[i][0].transcript;
+      if (ev.results[i].isFinal) fin += t + " "; else interim += t;
+    }
+    $("live").textContent = (fin + interim).trim();
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(stopListening, 1700);
+  };
+  rec.onerror = ev => {
+    if (ev.error === "not-allowed" || ev.error === "service-not-allowed" || ev.error === "audio-capture") {
+      micOff = true; listening = false;
+      $("typeForm").hidden = false;
+      cErr(inViewer ? "Trong claude.ai không dùng được micro, nên bạn gõ câu trả lời nhé. Muốn nói thật, mở file hanami-game.html bằng Chrome." : "Chưa dùng được micro. Bấm biểu tượng bên trái thanh địa chỉ của Chrome, cho phép Micro, rồi mở lại cuộc gọi.");
+      cIdle();
+    }
+  };
+  rec.onend = () => {
+    if (!listening) return;
+    listening = false;
+    const text = ($("live").textContent || "").trim();
+    $("live").textContent = "";
+    if (text) talk(text); else cIdle();
+  };
+  try { rec.start(); listening = true; cState("listening", "Đang nghe bạn…"); updateMic(); }
+  catch (e) { micOff = true; $("typeForm").hidden = false; cIdle(); }
+}
+function stopListening() { clearTimeout(silenceTimer); if (rec && listening) { try { rec.stop(); } catch (e) {} } }
+function abortListening() { clearTimeout(silenceTimer); if (rec && listening) { listening = false; try { rec.abort(); } catch (e) {} } }
+function updateMic() {
+  $("micBtn").classList.toggle("on", listening);
+  $("micBtn").disabled = S.busy || micOff;
+  $("micLabel").textContent = micOff ? "Micro tắt" : listening ? "Chạm để gửi" : speaking ? "Chạm để chen" : "Chạm để nói";
+}
+
+function openCall() {
+  if (callOpen || S.ended || !active || !NPCS[active]) return;
+  callNpc = active; callOpen = true; held = null; S.target = null;
+  const n = NPCS[callNpc];
+  $("ctname").textContent = n.name + " · " + n.role.toLowerCase();
+  $("cpat").textContent = patienceText();
+  $("clog").innerHTML = ""; $("live").textContent = ""; $("hintText").hidden = true; cErr("");
+  $("typeForm").hidden = !micOff;
+  $("subBtn").setAttribute("aria-pressed", subs ? "true" : "false"); $("subLabel").textContent = "Phụ đề: " + (subs ? "bật" : "tắt");
+  $("callOv").hidden = false;
+  hud();
+  const greet = VOICE[callNpc].greet[n.history.length ? 1 : 0];
+  n.history.push({ who: "npc", text: greet });
+  npcSays(greet);
+}
+function closeCall() {
+  if (!callOpen) return;
+  callOpen = false;
+  if (hasTTS) speechSynthesis.cancel();
+  abortListening();
+  speaking = false;
+  $("callOv").hidden = true;
+  updateTalk();
+}
+
+async function talk(text) {
+  if (S.busy || S.ended || !callOpen) return;
+  cErr(""); $("hintText").hidden = true;
+  const id = callNpc, n = NPCS[id];
+  S.busy = true; hud(); updateMic();
+  cBubble("me", text);
+  bubble("me", text, "me");
+  n.history.push({ who: "me", text });
+  S.minutes += 4; hud();
+  cState("thinking", "Đang nghĩ…");
+  const r = await brain(id, text);
+  const effects = [];
+  if (id === "kenji") {
+    const before = S.patience;
+    S.patience = Math.max(0, Math.min(5, S.patience + (Number(r.patience_delta) || 0)));
+    if (S.patience < before) effects.push("Kenji mất " + (before - S.patience) + " tim kiên nhẫn");
+    if (S.patience > before) effects.push("Kenji dịu đi");
+    $("cpat").textContent = patienceText();
+  }
+  if (r.reveals === "suite" && !S.flags.suite) { S.flags.suite = true; effects.push("Mở bí mật: còn một phòng suite"); }
+  if (r.reveals === "hostel" && !S.flags.hostel) { S.flags.hostel = true; effects.push("Mở bí mật: hostel bên kia đường"); }
+  if ((r.better && r.better.trim()) || (r.issue_vi && r.issue_vi.trim())) S.feedback.push({ said: text, better: r.better || "", issue: r.issue_vi || "" });
+  cFeedback(r, effects);
+  const reply = String(r.reply || "Sorry, could you say that again?");
+  n.history.push({ who: "npc", text: reply });
+  S.busy = false; hud(); updateMic();
+  let finish = null;
+  if (id === "kenji" && r.agreed) {
+    const c = Number(r.charge_yen) || 0;
+    if (c <= 3000) { S.wallet -= c; hud(); finish = () => end("suite", c); }
+    else effects.push("Giá đó vượt ngân sách ¥3.000");
+  }
+  if (!finish && S.minutes >= 23 * 60 + 30) finish = () => end("lobby");
+  if (finish) {
+    lastNpcLine = reply; cBubble("npc", reply); bubble(id, reply, "npc", n.name);
+    await speak(reply);
+    closeCall(); finish();
+    return;
+  }
+  if (id === "kenji" && S.patience === 0) cErr("Kenji hết kiên nhẫn rồi. Thử hỏi người khác xem.");
+  await npcSays(reply);
+}
+
+async function hint() {
+  if (S.hints <= 0 || S.busy || !callOpen) return;
+  const n = NPCS[callNpc];
+  S.hints--; hud();
+  $("hintText").hidden = false; $("hintText").textContent = "Đang nghĩ gợi ý…";
+  let line = null;
+  try {
+    const r = await ask("A Vietnamese traveler in a Tokyo hotel lobby needs a place to sleep tonight for at most 3,000 yen extra. They are talking to " + n.name + " (" + n.persona.split(".")[0] + "). Conversation:\n" + histOf(n, 6) + "\n\nSuggest ONE short, polite, natural English line they could say next to make progress. Reply with only JSON: {\"line\": string, \"vi\": string (Vietnamese meaning)}");
+    if (r && r.line) line = r.line + (r.vi ? " (" + r.vi + ")" : "");
+  } catch (e) {}
+  if (!line) line = callNpc === "kenji"
+    ? (S.flags.suite ? "That sounds great, I'll take it. (Nghe ổn, tôi lấy phòng đó.)" : "Could you please check if there is any other option? (Anh kiểm tra giúp còn phương án nào khác không?)")
+    : callNpc === "sarah" ? "Do you know any cheap place to stay nearby? (Bạn biết chỗ nào rẻ gần đây không?)"
+    : "Excuse me, is there any room left? (Xin lỗi, còn phòng nào không?)";
+  $("hintText").textContent = "Thử nói: " + line;
+}
+
+/* portrait inside the call */
+const pctx = $("pcv").getContext("2d"); pctx.scale(8, 8);
+function drawPortrait(now) {
+  ctx = pctx;
+  pctx.clearRect(0, 0, 45, 45);
+  const bob = speaking ? Math.abs(Math.sin(now / 90)) * 1.5 : 0;
+  chibi(10.5 / T, 23 / T, NPCS[callNpc].look, 1, bob, null);
+}
+
+const ENDS = {
+  suite: { title: "Phòng suite giá hời!", stars: 3 },
+  hostel: { title: "Giường hostel bên kia đường", stars: 2 },
+  lobby: { title: "Một đêm trên ghế sảnh", stars: 1 }
+};
+function star(filled) {
+  const ns = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(ns, "svg"); s.setAttribute("width", "40"); s.setAttribute("height", "40"); s.setAttribute("viewBox", "0 0 24 24"); s.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS(ns, "path");
+  p.setAttribute("d", "M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9z");
+  p.setAttribute("fill", filled ? "#FFC93C" : "#E8D9C4"); p.setAttribute("stroke", "#3B2414"); p.setAttribute("stroke-width", "1.8"); p.setAttribute("stroke-linejoin", "round");
+  s.appendChild(p); return s;
+}
+function end(kind, charge) {
+  if (S.ended) return;
+  closeCall();
+  S.ended = kind;
+  if (kind === "hostel") { S.wallet -= 3000; hud(); }
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem("hanami-endings") || "[]"); if (!seen.includes(kind)) seen.push(kind); localStorage.setItem("hanami-endings", JSON.stringify(seen)); } catch (e) { seen = [kind]; }
+  const E = ENDS[kind];
+  const story = kind === "suite" ? "Bạn giữ bình tĩnh, hỏi đúng câu, và Kenji nâng hạng cho bạn với phụ thu ¥" + (charge || 0).toLocaleString("vi-VN") + "."
+    : kind === "hostel" ? "Nhờ Sarah mách, bạn sang Sakura Hostel ngủ với giá khoảng ¥3.000. Không sang, nhưng có chỗ ngả lưng."
+    : "Gần nửa đêm mà bạn vẫn chưa có chỗ ngủ. Kenji cho bạn ngồi tạm ghế sảnh đến sáng.";
+  const el = $("end"); el.innerHTML = "";
+  const card = document.createElement("div"); card.className = "card";
+  const rib = document.createElement("div"); rib.className = "ribbon"; rib.textContent = E.title;
+  const st = document.createElement("div"); st.className = "stars";
+  for (let i = 0; i < 3; i++) st.appendChild(star(i < E.stars));
+  const meta = document.createElement("div"); meta.className = "meta"; meta.textContent = "Đã mở " + seen.length + "/3 kết cục · còn ¥" + S.wallet.toLocaleString("vi-VN") + " · " + clockStr();
+  const p = document.createElement("p"); p.textContent = story;
+  const h3 = document.createElement("h3"); h3.textContent = "Những câu nên nói lại";
+  const fb = document.createElement("div"); fb.className = "fb";
+  const list = S.feedback.slice(-5);
+  if (!list.length) { const d = document.createElement("div"); d.textContent = "Không có câu nào cần sửa. Giỏi lắm!"; fb.appendChild(d); }
+  list.forEach(f => {
+    const d = document.createElement("div");
+    const s1 = document.createElement("s"); s1.textContent = f.said; d.appendChild(s1);
+    if (f.better) { d.appendChild(document.createElement("br")); const em = document.createElement("em"); em.textContent = f.better; d.appendChild(em); }
+    if (f.issue) { d.appendChild(document.createElement("br")); d.appendChild(document.createTextNode(f.issue)); }
+    fb.appendChild(d);
+  });
+  try { if (E.stars > bestStars()) localStorage.setItem("hanami-best", String(E.stars)); } catch (e) {}
+  const btns = document.createElement("div"); btns.className = "row"; btns.style.justifyContent = "center";
+  const again = document.createElement("button"); again.className = "btn"; again.textContent = "Chơi lại";
+  again.addEventListener("click", () => { reset(); active = null; updateTalk(); });
+  const home = document.createElement("button"); home.className = "btn go"; home.textContent = "Về bản đồ";
+  home.addEventListener("click", goHome);
+  btns.append(again, home);
+  card.append(rib, st, meta, p, h3, fb, btns);
+  el.appendChild(card);
+  el.hidden = false;
+  active = "__"; updateTalk();
+}
+
+$("callBtn").addEventListener("click", openCall);
+$("byeBtn").addEventListener("click", closeCall);
+$("hintBtn").addEventListener("click", hint);
+$("micBtn").addEventListener("click", () => {
+  if (!callOpen || S.busy) return;
+  if (listening) { stopListening(); return; }
+  if (speaking && hasTTS) speechSynthesis.cancel();
+  listen();
+});
+$("typeForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = $("say").value.trim();
+  if (!v) { cErr("Gõ câu trả lời trước đã."); return; }
+  $("say").value = "";
+  talk(v);
+});
+$("say").addEventListener("input", () => cErr(""));
+$("replayBtn").addEventListener("click", () => {
+  if (!callOpen || !lastNpcLine || S.busy) return;
+  abortListening();
+  speak(lastNpcLine).then(() => { if (callOpen) cIdle(); });
+});
+$("subBtn").addEventListener("click", () => {
+  subs = !subs;
+  $("subBtn").setAttribute("aria-pressed", subs ? "true" : "false");
+  $("subLabel").textContent = "Phụ đề: " + (subs ? "bật" : "tắt");
+  document.querySelectorAll(".cb.t").forEach(b => { b.classList.toggle("hidden-text", !subs); b.textContent = subs ? b.dataset.text : "Phụ đề đang tắt, hãy nghe"; });
+});
+document.addEventListener("keydown", e => { if (callOpen && e.key === "Escape") closeCall(); });
+
+reset();
+updateTalk();
+renderSheet();
+requestAnimationFrame(loop);
+})();
+</script>
+</body></html>
