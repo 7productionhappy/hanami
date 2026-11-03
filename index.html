@@ -191,6 +191,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .bico { font-size: 22px; line-height: 1; color: var(--muted); }
 .badge.got .bico { color: #C98A0A; }
 #syncCode, #syncIn { font: inherit; font-size: 14px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 6px 8px; min-width: 0; }
+.logtitle { margin: 0; font-family: var(--font-ui); font-size: 22px; font-weight: 800; line-height: 1.15; }
+.fld { display: flex; flex-direction: column; gap: 4px; font-family: var(--font-ui); font-weight: 800; font-size: 15px; }
+.fld input { font-family: var(--font-body); font-weight: 400; font-size: 16px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.acct { background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.5; }
 #revIn { font: inherit; font-size: 16px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 8px 10px; min-width: 0; }
 @media (max-width: 380px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
@@ -198,8 +202,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 <div class="game" id="homeView">
   <div class="topbar">
     <div class="home-head">
-      <div class="avatar" aria-hidden="true">B</div>
-      <div class="who"><b>Thành phố của bạn</b><span id="whoLine">Cấp 1 · trình độ A2</span></div>
+      <div class="avatar" aria-hidden="true" id="avatarTxt">B</div>
+      <div class="who"><b id="whoName">Thành phố của bạn</b><span id="whoLine">Cấp 1 · trình độ A2</span></div>
     </div>
     <div class="pills">
       <span class="pill"><span class="ico star" aria-hidden="true">★</span><span id="starTotal">0 sao</span></span>
@@ -233,6 +237,22 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
     <button type="button" data-tab="review"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>Ôn tập</button>
     <button type="button" data-tab="profile"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Hồ sơ</button>
   </nav>
+</div>
+
+<div class="callov" id="loginOv" hidden role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+  <form class="callcard" id="loginForm" novalidate>
+    <div class="callhead"><h2 class="logtitle" id="loginTitle">Đăng nhập để chơi</h2><button class="btn small" type="button" id="loginClose">Đóng</button></div>
+    <p class="muted">Tài khoản giữ tiến độ, sổ tay và lịch ôn của bạn, kể cả khi đổi máy.</p>
+    <div class="row" role="group" aria-label="Chọn cách vào">
+      <button class="fchip" type="button" id="modeLogin" aria-pressed="true">Đăng nhập</button>
+      <button class="fchip" type="button" id="modeReg" aria-pressed="false">Tạo tài khoản</button>
+    </div>
+    <label class="fld" id="nameFld" hidden><span>Tên hiển thị</span><input id="regName" autocomplete="nickname" maxlength="30" placeholder="Ví dụ: Minh"></label>
+    <label class="fld"><span>Tên đăng nhập</span><input id="logUser" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="24" placeholder="Chữ thường không dấu, số, _ hoặc ."></label>
+    <label class="fld"><span>Mật khẩu</span><input id="logPass" type="password" autocomplete="current-password" maxlength="200" placeholder="Ít nhất 6 ký tự"></label>
+    <div class="err" id="loginErr" hidden></div>
+    <button class="btn go" id="loginGo" type="submit">Đăng nhập</button>
+  </form>
 </div>
 
 <div class="game" id="levelView" hidden>
@@ -814,7 +834,7 @@ function renderSheet() {
     prog.textContent = "Màn 1/10 · Khách sạn hết phòng · tốt nhất " + "★".repeat(stars) + "☆".repeat(Math.max(0, 3 - stars));
     el.appendChild(prog);
     b.textContent = stars ? "Chơi lại màn 1" : "Vào màn 1";
-    b.addEventListener("click", startLevel);
+    b.addEventListener("click", () => requireLogin(startLevel));
   } else {
     b.textContent = s.status === "soon" ? "Sắp ra mắt" : "Còn khóa";
     b.disabled = true;
@@ -866,15 +886,15 @@ if (inViewer) {
 }
 /* on our own server (Railway): Claude and progress go through /api */
 let apiMode = false, apiDb = false;
+let healthReady = Promise.resolve();
 if (!inViewer && /^https?:$/.test(location.protocol)) {
-  fetch("/api/health", { signal: AbortSignal.timeout(4000) })
+  healthReady = fetch("/api/health", { signal: AbortSignal.timeout(4000) })
     .then(r => r.ok ? r.json() : null)
     .then(h => {
       if (!h || !h.ok) return;
       apiMode = Boolean(h.ai); apiDb = Boolean(h.db);
       if (apiMode) $("keyBox").hidden = true;
-      if (apiDb) pullProgress(false);
-      if (homeTab === "profile") renderProfile();
+      if (apiDb) return checkMe();
     })
     .catch(() => {});
 }
@@ -1280,18 +1300,8 @@ function loadData() {
 }
 let D = loadData();
 function saveData() { D.updatedAt = Date.now(); try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch (e) {} schedulePush(); }
-const DEVICE_KEY = "hanami-device", DEVICE_RE = /^[a-zA-Z0-9-]{16,64}$/;
-function deviceId() {
-  let d = null;
-  try { d = localStorage.getItem(DEVICE_KEY); } catch (e) {}
-  if (!d || !DEVICE_RE.test(d)) {
-    d = window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
-    try { localStorage.setItem(DEVICE_KEY, d); } catch (e) {}
-  }
-  return d;
-}
-let pushTimer = null, syncNote = "";
-function schedulePush() { if (!apiDb) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushProgress, 1500); }
+let me = null, pushTimer = null, syncNote = "";
+function schedulePush() { if (!apiDb || !me) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushProgress, 1500); }
 function snapshot() {
   let endings = [], best = 0;
   try { endings = JSON.parse(localStorage.getItem("hanami-endings") || "[]"); best = Number(localStorage.getItem("hanami-best") || 0) || 0; } catch (e) {}
@@ -1299,32 +1309,110 @@ function snapshot() {
 }
 async function pushProgress() {
   try {
-    const r = await fetch("/api/progress", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: deviceId(), data: snapshot() }) });
+    const r = await fetch("/api/progress", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ data: snapshot() }) });
+    if (r.status === 401) { me = null; syncNote = "Phiên đăng nhập đã hết hạn, hãy đăng nhập lại"; refreshHomeHeader(); return; }
     syncNote = r.ok ? "Đã đồng bộ lúc " + new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "Chưa đồng bộ được, sẽ thử lại lần sau";
   } catch (e) { syncNote = "Chưa đồng bộ được, sẽ thử lại lần sau"; }
 }
-async function pullProgress(force) {
+function applyData(data) {
+  const { endings, best, ...rest } = data;
+  D = Object.assign(freshData(), rest, { owner: me ? me.username : rest.owner });
   try {
-    const r = await fetch("/api/progress?device=" + encodeURIComponent(deviceId()));
-    if (!r.ok) return false;
+    localStorage.setItem(STORE_KEY, JSON.stringify(D));
+    localStorage.setItem("hanami-endings", JSON.stringify(Array.isArray(endings) ? endings : []));
+    localStorage.setItem("hanami-best", String(Number(best) || 0));
+  } catch (e) {}
+}
+function resetLocal() {
+  try { localStorage.removeItem(STORE_KEY); localStorage.removeItem("hanami-endings"); localStorage.removeItem("hanami-best"); } catch (e) {}
+  D = freshData(); seedTargets();
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch (e) {}
+}
+function refreshAll() { refreshHomeHeader(); if (homeTab === "map") renderSheet(); else showTab(homeTab); }
+async function syncAccount() {
+  try {
+    const r = await fetch("/api/progress");
+    if (!r.ok) return;
     const j = await r.json();
-    if (j.data && j.data.v === 1 && (force || (j.data.updatedAt || 0) > (D.updatedAt || 0))) {
-      const { endings, best, ...rest } = j.data;
-      D = Object.assign(freshData(), rest);
-      try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(D));
-        localStorage.setItem("hanami-endings", JSON.stringify(Array.isArray(endings) ? endings : []));
-        localStorage.setItem("hanami-best", String(Number(best) || 0));
-      } catch (e) {}
-      syncNote = "Đã tải tiến độ từ máy chủ";
-      refreshHomeHeader();
-      if (homeTab === "map") renderSheet(); else showTab(homeTab);
-      return true;
+    const sameOwner = D.owner === me.username;
+    if (j.data && j.data.v === 1 && (!sameOwner || (j.data.updatedAt || 0) > (D.updatedAt || 0))) {
+      applyData(j.data); syncNote = "Đã tải tiến độ của tài khoản";
+    } else {
+      if (!j.data && D.owner && !sameOwner) resetLocal();
+      D.owner = me.username; saveData();
     }
-    if (force) return false;
-    if (!j.data || (j.data.updatedAt || 0) < (D.updatedAt || 0)) pushProgress();
-    return true;
-  } catch (e) { return false; }
+    refreshAll();
+  } catch (e) {}
+}
+async function checkMe() {
+  try {
+    const r = await fetch("/api/me");
+    me = r.ok ? (await r.json()).user : null;
+  } catch (e) { me = null; }
+  if (me) await syncAccount(); else refreshAll();
+}
+
+/* login only when it is needed */
+let loginMode = "login", afterLogin = null;
+async function requireLogin(fn) {
+  await Promise.race([healthReady, new Promise(r => setTimeout(r, 4500))]);
+  if (!apiDb || me) { fn(); return; }
+  openLogin(fn);
+}
+function setLoginMode(m) {
+  loginMode = m;
+  $("modeLogin").setAttribute("aria-pressed", m === "login" ? "true" : "false");
+  $("modeReg").setAttribute("aria-pressed", m === "register" ? "true" : "false");
+  $("nameFld").hidden = m !== "register";
+  $("loginGo").textContent = m === "login" ? "Đăng nhập" : "Tạo tài khoản";
+  $("loginTitle").textContent = m === "login" ? "Đăng nhập để chơi" : "Tạo tài khoản mới";
+  $("logPass").setAttribute("autocomplete", m === "login" ? "current-password" : "new-password");
+  $("loginErr").hidden = true;
+}
+function openLogin(fn) {
+  afterLogin = fn; setLoginMode("login");
+  $("loginOv").hidden = false;
+  setTimeout(() => $("logUser").focus(), 50);
+}
+function closeLogin() { $("loginOv").hidden = true; afterLogin = null; }
+const AUTH_ERR = {
+  bad_username: "Tên đăng nhập cần 3–24 ký tự: chữ thường không dấu, số, dấu _ hoặc dấu chấm.",
+  bad_password: "Mật khẩu cần ít nhất 6 ký tự.",
+  username_taken: "Tên đăng nhập này đã có người dùng. Chọn tên khác.",
+  wrong_login: "Sai tên đăng nhập hoặc mật khẩu.",
+  too_many_attempts: "Bạn thử quá nhiều lần. Đợi khoảng 10 phút rồi thử lại.",
+  db_unavailable: "Máy chủ chưa sẵn sàng. Thử lại sau ít phút."
+};
+function loginErr(msg) { $("loginErr").textContent = msg; $("loginErr").hidden = !msg; }
+$("modeLogin").addEventListener("click", () => setLoginMode("login"));
+$("modeReg").addEventListener("click", () => setLoginMode("register"));
+$("loginClose").addEventListener("click", closeLogin);
+["logUser", "logPass", "regName"].forEach(id => $(id).addEventListener("input", () => loginErr("")));
+$("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const username = $("logUser").value.trim().toLowerCase(), password = $("logPass").value;
+  if (!/^[a-z0-9_.]{3,24}$/.test(username)) { loginErr(AUTH_ERR.bad_username); $("logUser").focus(); return; }
+  if (password.length < 6) { loginErr(AUTH_ERR.bad_password); $("logPass").focus(); return; }
+  $("loginGo").disabled = true; loginErr("");
+  try {
+    const r = await fetch("/api/auth/" + (loginMode === "login" ? "login" : "register"), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ username, password, name: $("regName").value.trim() })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { loginErr(AUTH_ERR[j.error] || "Chưa đăng nhập được. Thử lại nhé."); return; }
+    me = j.user;
+    $("logPass").value = "";
+    await syncAccount();
+    const fn = afterLogin; closeLogin();
+    if (fn) fn();
+  } catch (err) { loginErr("Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại."); }
+  finally { $("loginGo").disabled = false; }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("loginOv").hidden) closeLogin(); });
+async function logout() {
+  try { await fetch("/api/auth/logout", { method: "POST" }); } catch (e) {}
+  me = null; syncNote = ""; resetLocal(); showTab("map");
 }
 function isoOf(dt) { return dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0"); }
 function today() { return isoOf(new Date()); }
@@ -1378,10 +1466,11 @@ const HOTEL_TARGETS = [
   ["Could you check if there's anything available?", "Anh kiểm tra giúp còn phòng nào trống không?"],
   ["That sounds great. I'll take it.", "Nghe ổn đấy. Tôi lấy phòng đó."]
 ];
-if (!D.seeded) {
+function seedTargets() {
   HOTEL_TARGETS.slice().reverse().forEach(([en, vi]) => addPhrase(en, { vi, kind: "target", src: "Màn Khách sạn hết phòng" }));
-  D.seeded = true; saveData();
+  D.seeded = true;
 }
+if (!D.seeded) { seedTargets(); saveData(); }
 
 function recordTurn(id, text, r) {
   const words = norm(text).length, score = Math.max(1, Math.min(3, Number(r.score) || 2));
@@ -1448,6 +1537,8 @@ function mastery(p) { return p.box >= 3 ? ["Đã thuộc", "m3"] : p.box >= 1 ? 
 function dueList() { const t = today(); return D.phrases.filter(p => p.due <= t).sort((a, b) => a.due.localeCompare(b.due) || a.box - b.box); }
 
 function refreshHomeHeader() {
+  $("whoName").textContent = me ? me.name : "Thành phố của bạn";
+  $("avatarTxt").textContent = me ? (me.name.trim().charAt(0) || "B").toUpperCase() : "B";
   $("whoLine").textContent = "Cấp " + playerLevel() + " · trình độ " + D.level;
   $("streakTxt").textContent = "Chuỗi " + streak() + " ngày";
   const due = dueList().length;
@@ -1467,8 +1558,8 @@ function showTab(name) {
   refreshHomeHeader();
   window.scrollTo(0, 0);
 }
-document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
-$("dailyBtn").addEventListener("click", () => showTab(dueList().length ? "review" : "book"));
+document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => b.dataset.tab === "map" ? showTab("map") : requireLogin(() => showTab(b.dataset.tab))));
+$("dailyBtn").addEventListener("click", () => requireLogin(() => showTab(dueList().length ? "review" : "book")));
 
 /* Sổ tay */
 let bookFilter = "all";
@@ -1670,8 +1761,8 @@ function renderProfile() {
   const keyBox = $("keyBox");
   box.innerHTML = "";
   const head = el("div", "row");
-  const av = el("div", "avatar", "B"); av.setAttribute("aria-hidden", "true");
-  const who = el("div", "who"); who.append(el("b", null, "Người chơi"), el("span", null, "Cấp " + playerLevel() + " · " + (xp() % 100) + "/100 XP đến cấp sau"));
+  const av = el("div", "avatar", me ? (me.name.trim().charAt(0) || "B").toUpperCase() : "B"); av.setAttribute("aria-hidden", "true");
+  const who = el("div", "who"); who.append(el("b", null, me ? me.name : "Người chơi"), el("span", null, "Cấp " + playerLevel() + " · " + (xp() % 100) + "/100 XP đến cấp sau"));
   head.append(av, who);
   const xbar = el("div", "rprog"); const xi = el("i"); xi.style.width = (xp() % 100) + "%"; xbar.appendChild(xi);
   box.append(head, xbar);
@@ -1742,39 +1833,22 @@ function renderProfile() {
     lvRow.appendChild(b);
   });
   box.append(lvRow, el("p", "pmeta", "Trình độ đổi tốc độ nói và độ khó từ ngữ của nhân vật."));
-  if (apiDb) {
-    box.appendChild(el("h3", null, "Đồng bộ tiến độ"));
-    box.appendChild(el("p", "pmeta", "Tiến độ được lưu trên máy chủ theo mã dưới đây. Muốn chơi tiếp trên máy khác, mở game ở máy đó, vào Hồ sơ và nhập mã này." + (syncNote ? " " + syncNote + "." : "")));
-    const code = el("div", "row");
-    const cv2 = el("input"); cv2.id = "syncCode"; cv2.readOnly = true; cv2.value = deviceId(); cv2.style.flex = "1"; cv2.setAttribute("aria-label", "Mã đồng bộ của bạn");
-    const cp = el("button", "btn small", "Chép"); cp.type = "button";
-    cp.addEventListener("click", () => { navigator.clipboard.writeText(cv2.value).then(() => { cp.textContent = "Đã chép"; }).catch(() => { cv2.select(); }); });
-    code.append(cv2, cp);
-    const use = el("form", "row");
-    const inp = el("input"); inp.id = "syncIn"; inp.placeholder = "Dán mã từ máy khác"; inp.autocomplete = "off"; inp.style.flex = "1";
-    const go = el("button", "btn small go", "Dùng mã"); go.type = "submit";
-    const err = el("div", "err"); err.hidden = true;
-    use.append(inp, go);
-    use.addEventListener("submit", async e => {
-      e.preventDefault();
-      const v = inp.value.trim();
-      if (!DEVICE_RE.test(v)) { err.textContent = "Mã không đúng định dạng. Chép lại mã từ mục Hồ sơ ở máy kia."; err.hidden = false; return; }
-      const old = deviceId();
-      try { localStorage.setItem(DEVICE_KEY, v); } catch (e2) {}
-      const ok = await pullProgress(true);
-      if (!ok) { try { localStorage.setItem(DEVICE_KEY, old); } catch (e2) {} err.textContent = "Không tìm thấy tiến độ nào với mã này."; err.hidden = false; return; }
-      renderProfile();
-    });
-    inp.addEventListener("input", () => { err.hidden = true; });
-    box.append(code, use, err);
+  if (apiDb && me) {
+    box.appendChild(el("h3", null, "Tài khoản"));
+    const acct = el("div", "acct");
+    const line = el("div"); line.append("Đăng nhập là "); line.appendChild(el("b", null, me.name)); line.append(" (" + me.username + "). Tiến độ tự lưu lên máy chủ" + (syncNote ? ". " + syncNote : "") + ".");
+    const out = el("button", "btn small", "Đăng xuất"); out.type = "button"; out.style.alignSelf = "flex-start";
+    out.addEventListener("click", logout);
+    acct.append(line, out);
+    box.appendChild(acct);
   }
   box.appendChild(keyBox);
-  const wipe = el("button", "btn small red", wipeArmed ? "Bấm lần nữa để xóa hết" : "Xóa dữ liệu học tập"); wipe.type = "button";
+  const wipe = el("button", "btn small red", wipeArmed ? "Bấm lần nữa để xóa hết" : (me ? "Xóa dữ liệu học tập của tài khoản" : "Xóa dữ liệu học tập")); wipe.type = "button";
   wipe.addEventListener("click", () => {
     if (!wipeArmed) { wipeArmed = true; renderProfile(); setTimeout(() => { if (wipeArmed) { wipeArmed = false; if (homeTab === "profile") renderProfile(); } }, 4000); return; }
     wipeArmed = false;
-    try { localStorage.removeItem(STORE_KEY); localStorage.removeItem("hanami-endings"); localStorage.removeItem("hanami-best"); } catch (e) {}
-    D = freshData(); HOTEL_TARGETS.slice().reverse().forEach(([en, vi]) => addPhrase(en, { vi, kind: "target", src: "Màn Khách sạn hết phòng" })); D.seeded = true; saveData();
+    try { localStorage.removeItem("hanami-endings"); localStorage.removeItem("hanami-best"); } catch (e) {}
+    D = freshData(); seedTargets(); if (me) D.owner = me.username; saveData();
     renderProfile(); refreshHomeHeader();
   });
   box.appendChild(wipe);

@@ -1,6 +1,7 @@
 // Hanami Lobby backend: serves the game, talks to Claude with the server's key,
-// and keeps each player's learning progress in Postgres.
+// handles simple username/password accounts and keeps each player's progress in Postgres.
 const http = require("http");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { Pool } = require("pg");
@@ -19,11 +20,26 @@ let dbReady = false;
 if (process.env.DATABASE_URL) {
   const internal = /\.railway\.internal\b|localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL);
   pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: internal ? false : { rejectUnauthorized: false }, max: 5 });
-  pool.query(`CREATE TABLE IF NOT EXISTS progress (
-      device_id TEXT PRIMARY KEY,
+  pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      pass_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      expires_at TIMESTAMPTZ NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS user_progress (
+      user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       data JSONB NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )`)
+    );
+    DELETE FROM sessions WHERE expires_at < now();`)
     .then(() => { dbReady = true; console.log("Database ready"); })
     .catch(err => console.error("Database setup failed:", err.message));
 }
@@ -83,7 +99,58 @@ function allow(ip) {
   list.push(now); hits.set(ip, list); dayCount++;
   return true;
 }
-setInterval(() => { const now = Date.now(); for (const [ip, l] of hits) if (!l.some(t => now - t < 600000)) hits.delete(ip); }, 600000).unref();
+setInterval(() => {
+  const now = Date.now();
+  for (const m of [hits, loginHits]) for (const [k, l] of m) if (!l.some(t => now - t < 600000)) m.delete(k);
+}, 600000).unref();
+
+/* ---------- accounts ---------- */
+const SESSION_DAYS = 60;
+const USER_RE = /^[a-z0-9_.]{3,24}$/;
+const loginHits = new Map();
+function allowLogin(ip) {
+  const now = Date.now(), list = (loginHits.get(ip) || []).filter(t => now - t < 600000);
+  if (list.length >= 10) { loginHits.set(ip, list); return false; }
+  list.push(now); loginHits.set(ip, list); return true;
+}
+function hashPassword(pw) {
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16);
+    crypto.scrypt(pw, salt, 64, (err, key) => err ? reject(err) : resolve("scrypt$" + salt.toString("hex") + "$" + key.toString("hex")));
+  });
+}
+function checkPassword(pw, stored) {
+  return new Promise(resolve => {
+    const [kind, saltHex, keyHex] = String(stored).split("$");
+    if (kind !== "scrypt" || !saltHex || !keyHex) return resolve(false);
+    const want = Buffer.from(keyHex, "hex");
+    crypto.scrypt(pw, Buffer.from(saltHex, "hex"), want.length, (err, key) => resolve(!err && crypto.timingSafeEqual(key, want)));
+  });
+}
+const sha256 = t => crypto.createHash("sha256").update(t).digest("hex");
+function cookies(req) {
+  const out = {};
+  String(req.headers.cookie || "").split(";").forEach(part => { const i = part.indexOf("="); if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim()); });
+  return out;
+}
+function isHttps(req) { return String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim() === "https"; }
+function sessionCookie(req, token, maxAge) {
+  return "hs=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=" + maxAge + (isHttps(req) ? "; Secure" : "");
+}
+async function startSession(req, userId) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  await pool.query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, now() + make_interval(days => $3))", [sha256(token), userId, SESSION_DAYS]);
+  return sessionCookie(req, token, SESSION_DAYS * 86400);
+}
+async function currentUser(req) {
+  const token = cookies(req).hs;
+  if (!token || !dbReady) return null;
+  const r = await pool.query(
+    "SELECT u.id, u.username, u.display_name FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = $1 AND s.expires_at > now()",
+    [sha256(token)]);
+  return r.rows[0] || null;
+}
+const publicUser = u => ({ username: u.username, name: u.display_name });
 
 async function claude(prompt) {
   const r = await fetch(BASE_URL + "/v1/messages", {
@@ -101,15 +168,15 @@ async function claude(prompt) {
 }
 
 /* ---------- http ---------- */
-function send(res, status, body, type) {
+function send(res, status, body, type, extra) {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
-  res.writeHead(status, {
+  res.writeHead(status, Object.assign({}, extra || {}, {
     "content-type": type || "application/json; charset=utf-8",
     "cache-control": type ? "no-cache" : "no-store",
     "x-content-type-options": "nosniff",
     "referrer-policy": "strict-origin-when-cross-origin",
     "permissions-policy": "microphone=(self)"
-  });
+  }));
   res.end(data);
 }
 function readJSON(req, limit) {
@@ -120,41 +187,73 @@ function readJSON(req, limit) {
     req.on("error", reject);
   });
 }
-const DEVICE_RE = /^[a-zA-Z0-9-]{16,64}$/;
 function clientIp(req) { return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim(); }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) return send(res, 200, INDEX, "text/html; charset=utf-8");
-    if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true, ai: Boolean(API_KEY), db: dbReady });
+    if (req.method === "GET" && url.pathname === "/api/health") return send(res, 200, { ok: true, ai: Boolean(API_KEY), db: dbReady, accounts: dbReady });
+
+    if (url.pathname.startsWith("/api/auth/") && req.method === "POST") {
+      if (!dbReady) return send(res, 503, { error: "db_unavailable" });
+      if (url.pathname === "/api/auth/logout") {
+        const token = cookies(req).hs;
+        if (token) await pool.query("DELETE FROM sessions WHERE token_hash = $1", [sha256(token)]);
+        return send(res, 200, { ok: true }, null, { "set-cookie": sessionCookie(req, "", 0) });
+      }
+      const b = await readJSON(req, 4000);
+      const username = String(b.username || "").trim().toLowerCase(), password = String(b.password || "");
+      if (!allowLogin(clientIp(req))) return send(res, 429, { error: "too_many_attempts" });
+      if (url.pathname === "/api/auth/register") {
+        if (!USER_RE.test(username)) return send(res, 400, { error: "bad_username" });
+        if (password.length < 6 || password.length > 200) return send(res, 400, { error: "bad_password" });
+        const name = clip(b.name, 30).trim() || username;
+        const hash = await hashPassword(password);
+        const r = await pool.query("INSERT INTO users (username, display_name, pass_hash) VALUES ($1, $2, $3) ON CONFLICT (username) DO NOTHING RETURNING id, username, display_name", [username, name, hash]);
+        if (!r.rows[0]) return send(res, 409, { error: "username_taken" });
+        return send(res, 200, { user: publicUser(r.rows[0]) }, null, { "set-cookie": await startSession(req, r.rows[0].id) });
+      }
+      if (url.pathname === "/api/auth/login") {
+        const r = await pool.query("SELECT id, username, display_name, pass_hash FROM users WHERE username = $1", [username]);
+        const u = r.rows[0];
+        if (!u || !(await checkPassword(password, u.pass_hash))) return send(res, 401, { error: "wrong_login" });
+        return send(res, 200, { user: publicUser(u) }, null, { "set-cookie": await startSession(req, u.id) });
+      }
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/me") {
+      const u = await currentUser(req);
+      return u ? send(res, 200, { user: publicUser(u) }) : send(res, 401, { error: "not_logged_in" });
+    }
 
     if (req.method === "POST" && (url.pathname === "/api/npc" || url.pathname === "/api/hint")) {
       if (!API_KEY) return send(res, 503, { error: "ai_unavailable" });
+      const user = dbReady ? await currentUser(req) : null;
+      if (dbReady && !user) return send(res, 401, { error: "not_logged_in" });
       const b = await readJSON(req, 20000);
       if (!NPCS[b.npc]) return send(res, 400, { error: "unknown_npc" });
       if (url.pathname === "/api/npc" && !clip(b.text, 300).trim()) return send(res, 400, { error: "empty_text" });
-      if (!allow(clientIp(req))) return send(res, 429, { error: "rate_limited" });
+      if (!allow(user ? "u" + user.id : clientIp(req))) return send(res, 429, { error: "rate_limited" });
       const out = await claude(url.pathname === "/api/npc" ? npcPrompt(b) : hintPrompt(b));
       return send(res, 200, out);
     }
 
     if (url.pathname === "/api/progress") {
       if (!dbReady) return send(res, 503, { error: "db_unavailable" });
+      const user = await currentUser(req);
+      if (!user) return send(res, 401, { error: "not_logged_in" });
       if (req.method === "GET") {
-        const device = url.searchParams.get("device") || "";
-        if (!DEVICE_RE.test(device)) return send(res, 400, { error: "bad_device" });
-        const r = await pool.query("SELECT data, updated_at FROM progress WHERE device_id = $1", [device]);
+        const r = await pool.query("SELECT data, updated_at FROM user_progress WHERE user_id = $1", [user.id]);
         return send(res, 200, r.rows[0] ? { data: r.rows[0].data, updatedAt: r.rows[0].updated_at } : { data: null });
       }
       if (req.method === "PUT") {
         const b = await readJSON(req, 300000);
-        if (!DEVICE_RE.test(String(b.device || ""))) return send(res, 400, { error: "bad_device" });
-        if (!b.data || typeof b.data !== "object") return send(res, 400, { error: "bad_data" });
+        if (!b.data || typeof b.data !== "object" || Array.isArray(b.data)) return send(res, 400, { error: "bad_data" });
         await pool.query(
-          `INSERT INTO progress (device_id, data, updated_at) VALUES ($1, $2, now())
-           ON CONFLICT (device_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
-          [b.device, b.data]);
+          `INSERT INTO user_progress (user_id, data, updated_at) VALUES ($1, $2, now())
+           ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+          [user.id, b.data]);
         return send(res, 200, { ok: true });
       }
     }
