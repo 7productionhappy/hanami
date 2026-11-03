@@ -1,0 +1,16 @@
+{
+  "name": "hanami-lobby",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hanami Lobby: role-play game for practising spoken English, with a small backend for Claude and progress sync.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

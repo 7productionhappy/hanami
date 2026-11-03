@@ -190,6 +190,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--teal); outl
 .badge.got { background: #FFF1C2; border: 2.5px solid var(--ink); }
 .bico { font-size: 22px; line-height: 1; color: var(--muted); }
 .badge.got .bico { color: #C98A0A; }
+#syncCode, #syncIn { font: inherit; font-size: 14px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 6px 8px; min-width: 0; }
 #revIn { font: inherit; font-size: 16px; color: var(--ink); background: #FFFFFF; border: 2.5px solid var(--ink); border-radius: 10px; padding: 8px 10px; min-width: 0; }
 @media (max-width: 380px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
@@ -863,6 +864,26 @@ if (inViewer) {
   try { $("apiKey").value = localStorage.getItem("speak-key") || ""; } catch (e) {}
   $("apiKey").addEventListener("change", () => { try { localStorage.setItem("speak-key", $("apiKey").value.trim()); } catch (e) {} });
 }
+/* on our own server (Railway): Claude and progress go through /api */
+let apiMode = false, apiDb = false;
+if (!inViewer && /^https?:$/.test(location.protocol)) {
+  fetch("/api/health", { signal: AbortSignal.timeout(4000) })
+    .then(r => r.ok ? r.json() : null)
+    .then(h => {
+      if (!h || !h.ok) return;
+      apiMode = Boolean(h.ai); apiDb = Boolean(h.db);
+      if (apiMode) $("keyBox").hidden = true;
+      if (apiDb) pullProgress(false);
+      if (homeTab === "profile") renderProfile();
+    })
+    .catch(() => {});
+}
+async function api(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(35000) });
+  if (!r.ok) throw { code: r.status === 429 ? "rate_limited" : "http_" + r.status };
+  return r.json();
+}
+function apiHistory(n) { return n.history.slice(-8).map(h => ({ who: h.who, text: h.text })); }
 function clockStr() { return $("clock").textContent; }
 function parseJSON(text) {
   const a = text.indexOf("{"), b = text.lastIndexOf("}");
@@ -890,6 +911,14 @@ function histOf(n, k) { return n.history.slice(-(k || 8)).map(h => (h.who === "m
 
 async function brain(id, text) {
   const n = NPCS[id];
+  if (apiMode) {
+    try {
+      const r = await api("/api/npc", { npc: id, level: D.level, clock: clockStr(), text,
+        state: { patience: S.patience, suite: S.flags.suite, hostel: S.flags.hostel }, history: apiHistory(n) });
+      if (r && typeof r.reply === "string") return r;
+    } catch (e) {}
+    return scripted(id, text);
+  }
   const state = id === "kenji"
     ? "Kenji patience: " + S.patience + "/5. Suite already offered: " + S.flags.suite + "."
     : "Player already knows about the hostel: " + S.flags.hostel + ".";
@@ -1136,7 +1165,7 @@ async function hint() {
   $("hintText").hidden = false; $("hintText").textContent = "Đang nghĩ gợi ý…";
   let line = null;
   try {
-    const r = await ask("A Vietnamese traveler in a Tokyo hotel lobby needs a place to sleep tonight for at most 3,000 yen extra. They are talking to " + n.name + " (" + n.persona.split(".")[0] + "). Conversation:\n" + histOf(n, 6) + "\n\nSuggest ONE short, polite, natural English line they could say next to make progress. Reply with only JSON: {\"line\": string, \"vi\": string (Vietnamese meaning)}");
+    const r = apiMode ? await api("/api/hint", { npc: callNpc, history: apiHistory(n) }) : await ask("A Vietnamese traveler in a Tokyo hotel lobby needs a place to sleep tonight for at most 3,000 yen extra. They are talking to " + n.name + " (" + n.persona.split(".")[0] + "). Conversation:\n" + histOf(n, 6) + "\n\nSuggest ONE short, polite, natural English line they could say next to make progress. Reply with only JSON: {\"line\": string, \"vi\": string (Vietnamese meaning)}");
     if (r && r.line) line = r.line + (r.vi ? " (" + r.vi + ")" : "");
   } catch (e) {}
   if (!line) line = callNpc === "kenji"
@@ -1250,7 +1279,53 @@ function loadData() {
   return freshData();
 }
 let D = loadData();
-function saveData() { try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch (e) {} }
+function saveData() { D.updatedAt = Date.now(); try { localStorage.setItem(STORE_KEY, JSON.stringify(D)); } catch (e) {} schedulePush(); }
+const DEVICE_KEY = "hanami-device", DEVICE_RE = /^[a-zA-Z0-9-]{16,64}$/;
+function deviceId() {
+  let d = null;
+  try { d = localStorage.getItem(DEVICE_KEY); } catch (e) {}
+  if (!d || !DEVICE_RE.test(d)) {
+    d = window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2));
+    try { localStorage.setItem(DEVICE_KEY, d); } catch (e) {}
+  }
+  return d;
+}
+let pushTimer = null, syncNote = "";
+function schedulePush() { if (!apiDb) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushProgress, 1500); }
+function snapshot() {
+  let endings = [], best = 0;
+  try { endings = JSON.parse(localStorage.getItem("hanami-endings") || "[]"); best = Number(localStorage.getItem("hanami-best") || 0) || 0; } catch (e) {}
+  return Object.assign({}, D, { endings, best });
+}
+async function pushProgress() {
+  try {
+    const r = await fetch("/api/progress", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ device: deviceId(), data: snapshot() }) });
+    syncNote = r.ok ? "Đã đồng bộ lúc " + new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }) : "Chưa đồng bộ được, sẽ thử lại lần sau";
+  } catch (e) { syncNote = "Chưa đồng bộ được, sẽ thử lại lần sau"; }
+}
+async function pullProgress(force) {
+  try {
+    const r = await fetch("/api/progress?device=" + encodeURIComponent(deviceId()));
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (j.data && j.data.v === 1 && (force || (j.data.updatedAt || 0) > (D.updatedAt || 0))) {
+      const { endings, best, ...rest } = j.data;
+      D = Object.assign(freshData(), rest);
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(D));
+        localStorage.setItem("hanami-endings", JSON.stringify(Array.isArray(endings) ? endings : []));
+        localStorage.setItem("hanami-best", String(Number(best) || 0));
+      } catch (e) {}
+      syncNote = "Đã tải tiến độ từ máy chủ";
+      refreshHomeHeader();
+      if (homeTab === "map") renderSheet(); else showTab(homeTab);
+      return true;
+    }
+    if (force) return false;
+    if (!j.data || (j.data.updatedAt || 0) < (D.updatedAt || 0)) pushProgress();
+    return true;
+  } catch (e) { return false; }
+}
 function isoOf(dt) { return dt.getFullYear() + "-" + String(dt.getMonth() + 1).padStart(2, "0") + "-" + String(dt.getDate()).padStart(2, "0"); }
 function today() { return isoOf(new Date()); }
 function addDays(iso, n) { const [y, m, d] = iso.split("-").map(Number); return isoOf(new Date(y, m - 1, d + n)); }
@@ -1667,6 +1742,32 @@ function renderProfile() {
     lvRow.appendChild(b);
   });
   box.append(lvRow, el("p", "pmeta", "Trình độ đổi tốc độ nói và độ khó từ ngữ của nhân vật."));
+  if (apiDb) {
+    box.appendChild(el("h3", null, "Đồng bộ tiến độ"));
+    box.appendChild(el("p", "pmeta", "Tiến độ được lưu trên máy chủ theo mã dưới đây. Muốn chơi tiếp trên máy khác, mở game ở máy đó, vào Hồ sơ và nhập mã này." + (syncNote ? " " + syncNote + "." : "")));
+    const code = el("div", "row");
+    const cv2 = el("input"); cv2.id = "syncCode"; cv2.readOnly = true; cv2.value = deviceId(); cv2.style.flex = "1"; cv2.setAttribute("aria-label", "Mã đồng bộ của bạn");
+    const cp = el("button", "btn small", "Chép"); cp.type = "button";
+    cp.addEventListener("click", () => { navigator.clipboard.writeText(cv2.value).then(() => { cp.textContent = "Đã chép"; }).catch(() => { cv2.select(); }); });
+    code.append(cv2, cp);
+    const use = el("form", "row");
+    const inp = el("input"); inp.id = "syncIn"; inp.placeholder = "Dán mã từ máy khác"; inp.autocomplete = "off"; inp.style.flex = "1";
+    const go = el("button", "btn small go", "Dùng mã"); go.type = "submit";
+    const err = el("div", "err"); err.hidden = true;
+    use.append(inp, go);
+    use.addEventListener("submit", async e => {
+      e.preventDefault();
+      const v = inp.value.trim();
+      if (!DEVICE_RE.test(v)) { err.textContent = "Mã không đúng định dạng. Chép lại mã từ mục Hồ sơ ở máy kia."; err.hidden = false; return; }
+      const old = deviceId();
+      try { localStorage.setItem(DEVICE_KEY, v); } catch (e2) {}
+      const ok = await pullProgress(true);
+      if (!ok) { try { localStorage.setItem(DEVICE_KEY, old); } catch (e2) {} err.textContent = "Không tìm thấy tiến độ nào với mã này."; err.hidden = false; return; }
+      renderProfile();
+    });
+    inp.addEventListener("input", () => { err.hidden = true; });
+    box.append(code, use, err);
+  }
   box.appendChild(keyBox);
   const wipe = el("button", "btn small red", wipeArmed ? "Bấm lần nữa để xóa hết" : "Xóa dữ liệu học tập"); wipe.type = "button";
   wipe.addEventListener("click", () => {

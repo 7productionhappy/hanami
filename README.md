@@ -1,22 +1,55 @@
 # Hanami Lobby
 
-Bản demo game nhập vai luyện nói tiếng Anh của 9speak. Người chơi đi lại trong thành phố và sảnh khách sạn ở Tokyo; gặp nhân vật nào thì mở cuộc gọi luyện nói với giọng đọc (text-to-speech) và micro (speech-to-text), có nhận xét sau mỗi câu và bảng kết quả cuối màn.
+Bản demo game nhập vai luyện nói tiếng Anh của 9speak. Người chơi đi lại trong thành phố và sảnh khách sạn ở Tokyo; gặp nhân vật nào thì mở cuộc gọi luyện nói với giọng đọc (text-to-speech) và micro (speech-to-text), có nhận xét sau mỗi câu, Sổ tay, Ôn tập giãn cách và Hồ sơ.
 
-## Chạy thử trên máy
+## Cấu trúc
 
-Mở `index.html` qua một server cục bộ để Chrome cho dùng micro ổn định:
+| File | Vai trò |
+| --- | --- |
+| `index.html` | Toàn bộ game (một file, không cần build) |
+| `server.js` | Backend Node: phục vụ game, gọi Claude bằng key của server, lưu tiến độ vào Postgres |
+| `railway.json` | Cấu hình deploy trên Railway |
+
+## Deploy trên Railway
+
+1. Tạo project từ GitHub repo này. Railway tự nhận Node và chạy `npm start`.
+2. Thêm database **Postgres** vào cùng project.
+3. Trong service game, mục **Variables**, thêm:
+
+| Biến | Giá trị |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Key Anthropic của 9speak |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (tham chiếu tới database vừa thêm) |
+
+4. Mục **Settings → Networking**, bấm **Generate Domain** để có link https.
+
+Biến tùy chọn: `ANTHROPIC_MODEL` (mặc định `claude-haiku-5-5`), `MAX_CALLS_PER_10_MIN` (mặc định 60 lượt mỗi IP), `MAX_CALLS_PER_DAY` (mặc định 3000 lượt cho cả server).
+
+Bảng `progress` tự được tạo khi server khởi động.
+
+## API
+
+| Đường dẫn | Việc |
+| --- | --- |
+| `GET /api/health` | Trạng thái: có AI, có database |
+| `POST /api/npc` | Nhân vật trả lời một câu. Prompt và tính cách nhân vật nằm ở server, nên key không dùng được vào việc khác |
+| `POST /api/hint` | Gợi ý câu nói tiếp theo |
+| `GET /api/progress?device=…` | Lấy tiến độ theo mã thiết bị |
+| `PUT /api/progress` | Lưu tiến độ |
+
+Tiến độ gắn với một mã thiết bị ngẫu nhiên lưu trong trình duyệt. Muốn chơi tiếp trên máy khác, chép mã ở tab Hồ sơ và dán vào máy kia.
+
+## Chạy trên máy
 
 ```bash
-python3 -m http.server 8000
-# mở http://localhost:8000
+npm install
+ANTHROPIC_API_KEY=sk-ant-... DATABASE_URL=postgres://... npm start
+# mở http://localhost:3000
 ```
 
-## Cách nhân vật trả lời
+Thiếu `ANTHROPIC_API_KEY` thì nhân vật dùng kịch bản có sẵn; thiếu `DATABASE_URL` thì tiến độ chỉ lưu trong trình duyệt.
 
-- Có API key Anthropic: nhập ở màn bản đồ. Key chỉ lưu trong trình duyệt của người chơi và gửi thẳng tới Anthropic.
-- Không có key: nhân vật dùng kịch bản có sẵn.
-
-Bản production nên chuyển lời gọi AI sang một backend riêng để không phải để người chơi nhập key.
+Mở `index.html` trực tiếp (hoặc qua GitHub Pages) vẫn chơi được: không có server thì game hiện ô nhập API key ở tab Hồ sơ.
 
 ## Trình duyệt
 
