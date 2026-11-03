@@ -23,7 +23,7 @@ Bản demo game nhập vai luyện nói tiếng Anh của 9speak. Người chơi
 
 4. Mục **Settings → Networking**, bấm **Generate Domain** để có link https.
 
-Biến tùy chọn: `ANTHROPIC_MODEL` (mặc định `claude-haiku-5-5`), `MAX_CALLS_PER_10_MIN` (mặc định 60 lượt mỗi IP), `MAX_CALLS_PER_DAY` (mặc định 3000 lượt cho cả server).
+Biến tùy chọn: `ANTHROPIC_MODEL` (mặc định `claude-haiku-5-5`), `MAX_CALLS_PER_10_MIN` (mặc định 60 lượt mỗi tài khoản), `MAX_CALLS_PER_DAY` (mặc định 3000 lượt cho cả server).
 
 ## Tài khoản
 
